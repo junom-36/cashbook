@@ -19,7 +19,6 @@ input,select,button{font-family:inherit;}
 <script>
 const {useState,useEffect,useMemo,createElement:ce,Fragment}=React;
 
-// ── Data ──────────────────────────────────────────────────────────
 const CATS=[
   {id:"food",name:"食品酒水",color:"#e2725b",sub:["早午晚餐","咖啡","酒","蔬菜水果","水饮零食"]},
   {id:"transport",name:"行车交通",color:"#d4a017",sub:["公共交通","打车租车","加班打车","私家车费用"]},
@@ -38,14 +37,16 @@ const ICATS=[
   {id:"fin_in",name:"理财收入",sub:["投资利息","闲置出售"]},
   {id:"other_in",name:"其他收入",sub:["各种退款","抢红包","账户利息"]},
 ];
+const CAT_MAP={"食品酒水":"food","行车交通":"transport","服饰美容":"shopping","房租水电":"housing","日常家居":"daily","休闲娱乐":"entertainment","学习进修":"education","医疗保健":"health","人情往来":"social","金融保险":"finance","其他杂项":"other","代付转账":"other","特殊转账":"other","职业收入":"other","理财收入":"other","其他收入":"other"};
 const ALAB={cash:"现金",fund:"资金账户",virtual:"虚拟账户",liability:"信用卡/负债",receivable:"债权账户",investment:"投资账户"};
 const CLR=["#7c6fcd","#d4a017","#e2725b","#4a9e5c","#2e9b8f","#c45689","#3a7fc1","#8a8a8a","#e8803a","#9b6fcd"];
 const DEFRTS={"2026-04":0.185,"2026-03":0.186,"2026-02":0.184,"2026-01":0.185};
 const DAYS=["周日","周一","周二","周三","周四","周五","周六"];
 const SYMS={SGD:"S$",CNY:"¥",GBP:"£",USD:"US$"};
 const PP="#7c6fcd",GG="#4a9e5c",RR="#e2725b";
+const SG_KEYS=["OCBC","UOB","DBS","MOOMOO","MARIBANK","HSBC","WISE","GRAB","FULLERTON","LION"];
+const VALID_CURS=new Set(["SGD","CNY","GBP","USD"]);
 
-// ── Helpers ───────────────────────────────────────────────────────
 const gid=()=>Math.random().toString(36).slice(2,9);
 const getRate=(rt,cur,mo)=>cur==="SGD"?1:cur==="GBP"?1.72:cur==="USD"?1.35:(rt[mo]||0.185);
 const toSGD=(a,cur,rt,mo)=>a*getRate(rt,cur,mo);
@@ -63,12 +64,38 @@ const calcBal=(id,txns)=>txns.reduce((s,t)=>{
   return s;
 },0);
 
-// ── Style helpers ─────────────────────────────────────────────────
+function detectCurrency(name){
+  const n=(name||"").toUpperCase();
+  if(n.includes("英镑")||n.includes("GBP"))return "GBP";
+  if(n.includes("USD")||n.includes("美元"))return "USD";
+  if(SG_KEYS.some(k=>n.includes(k))||n.startsWith("SG "))return "SGD";
+  return "CNY";
+}
+function guessAcctType(name){
+  const n=(name||"").toLowerCase();
+  if(n.includes("信用卡")||n.includes("credit")||n.includes("白条")||n.includes("花呗")||n.includes("借呗"))return "liability";
+  if(n.includes("moomoo")||n.includes("证券")||n.includes("基金")||n.includes("余额宝")||n.includes("理财")||n.includes("fullerton")||n.includes("定期"))return "investment";
+  if(n.includes("支付宝")||n.includes("微信")||n.includes("grab"))return "virtual";
+  if(n.includes("现金"))return "cash";
+  return "fund";
+}
+function parseCSVLine(line){
+  const res=[];let cur="";let inQ=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){res.push(cur);cur="";}else{cur+=ch;}}
+  res.push(cur);
+  return res.map(s=>s.trim().replace(/^"|"$/g,""));
+}
+function parseCSV(text){
+  const lines=text.split('\n').filter(l=>l.trim());
+  if(lines.length<2)return [];
+  const hdrs=parseCSVLine(lines[0]);
+  return lines.slice(1).map(line=>{const vals=parseCSVLine(line);const obj={};hdrs.forEach((h,i)=>{obj[h.trim()]=vals[i]||"";});return obj;}).filter(r=>r['交易类型']&&r['交易类型']!=='交易类型');
+}
+
 const IPT={padding:"10px 12px",border:"0.5px solid var(--bd2)",borderRadius:8,fontSize:14,outline:"none",background:"var(--bg)",color:"var(--text)",width:"100%",boxSizing:"border-box"};
 const SM={padding:"6px 8px",border:"0.5px solid var(--bd2)",borderRadius:8,fontSize:12,outline:"none",background:"var(--bg)",color:"var(--text)",width:"100%",boxSizing:"border-box"};
 const CARD={background:"var(--bg)",border:"0.5px solid var(--bd)",borderRadius:12,padding:"14px 16px",marginBottom:10};
 
-// ── UI Components ─────────────────────────────────────────────────
 function Lbl(p){return ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:5,fontWeight:500}},p.children);}
 function Btn(p){return ce("button",{onClick:p.onClick,style:{padding:"11px",border:"none",borderRadius:10,background:p.color||PP,color:"white",fontSize:14,fontWeight:500,cursor:"pointer",...(p.style||{})}},p.children);}
 function Num(p){return ce("span",null,p.vis?p.v:"••••");}
@@ -78,7 +105,6 @@ function Eye(p){
     :ce("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},ce("path",{d:"M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"}),ce("path",{d:"M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"}),ce("line",{x1:1,y1:1,x2:23,y2:23}));
 }
 
-// ── CSS Charts ────────────────────────────────────────────────────
 function DonutChart(p){
   const {data,total}=p;
   if(!data||!data.length)return null;
@@ -92,10 +118,7 @@ function DonutChart(p){
     return ce("circle",{key:i,cx,cy,r,fill:"none",stroke:d.color||(CLR[i%CLR.length]),strokeWidth:14,strokeDasharray:Math.max(0,dash)+" "+circ,strokeDashoffset:offset});
   });
   return ce("div",{style:{display:"flex",alignItems:"center",gap:14,padding:"4px 0"}},
-    ce("svg",{width:size,height:size,style:{flexShrink:0}},
-      ce("circle",{cx,cy,r,fill:"none",stroke:"var(--bg3)",strokeWidth:14}),
-      ...slices
-    ),
+    ce("svg",{width:size,height:size,style:{flexShrink:0}},ce("circle",{cx,cy,r,fill:"none",stroke:"var(--bg3)",strokeWidth:14}),...slices),
     ce("div",{style:{flex:1,minWidth:0}},
       data.slice(0,6).map((d,i)=>ce("div",{key:i,style:{display:"flex",alignItems:"center",gap:5,marginBottom:3}},
         ce("div",{style:{width:7,height:7,borderRadius:2,background:d.color||(CLR[i%CLR.length]),flexShrink:0}}),
@@ -114,7 +137,7 @@ function BarChart(p){
       ce("div",{style:{display:"flex",alignItems:"center",gap:4}},ce("div",{style:{width:8,height:8,borderRadius:2,background:GG}}),ce("span",{style:{color:"var(--text2)"}},"收入")),
       ce("div",{style:{display:"flex",alignItems:"center",gap:4}},ce("div",{style:{width:8,height:8,borderRadius:2,background:RR}}),ce("span",{style:{color:"var(--text2)"}},"支出"))
     ),
-    ce("div",{style:{display:"flex",alignItems:"flex-end",gap:3,height:120,overflowX:"auto",paddingBottom:18,position:"relative",borderBottom:"1px solid var(--bd)"}},
+    ce("div",{style:{display:"flex",alignItems:"flex-end",gap:3,height:120,overflowX:"auto",paddingBottom:18,borderBottom:"1px solid var(--bd)"}},
       data.map((d,i)=>ce("div",{key:i,style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:28,flex:1}},
         ce("div",{style:{display:"flex",alignItems:"flex-end",gap:2,height:100}},
           ce("div",{style:{width:9,borderRadius:"3px 3px 0 0",background:GG,height:Math.max(2,Math.round(d.income/max*96))+"px"}}),
@@ -126,7 +149,6 @@ function BarChart(p){
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────
 function App(){
   const [page,setPage]=useState("home");
   const [prev,setPrev]=useState("home");
@@ -159,10 +181,15 @@ function App(){
   const [syncSt,setSyncSt]=useState("");
   const [lastSync,setLastSync]=useState("");
   const [aForm,setAForm]=useState({name:"",type:"fund",currency:"SGD"});
+  const [impStep,setImpStep]=useState("upload");
+  const [impRows,setImpRows]=useState([]);
+  const [impAcctMap,setImpAcctMap]=useState({});
+  const [impDateFrom,setImpDateFrom]=useState("2024-01");
+  const [impPreview,setImpPreview]=useState({txns:[],accts:[]});
+  const [impMsg,setImpMsg]=useState("");
   const mkForm=()=>({type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:"food",sub:"",note:""});
   const [form,setForm]=useState(()=>({type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:"",toAcctId:"",catId:"food",sub:"",note:""}));
 
-  // Computed
   const bals=useMemo(()=>{const m={};accts.forEach(a=>{m[a.id]=calcBal(a.id,txns);});return m;},[accts,txns]);
   const assets=useMemo(()=>accts.reduce((s,a)=>s+toBase(Math.max(0,bals[a.id]||0),a.currency,base,rates,mo),0),[accts,bals,base,rates,mo]);
   const liabs=useMemo(()=>accts.reduce((s,a)=>{const b=bals[a.id]||0;return b<0?s+toBase(Math.abs(b),a.currency,base,rates,mo):s;},0),[accts,bals,base,rates,mo]);
@@ -231,14 +258,12 @@ function App(){
     }));
   },[fltTxns,lim,rates]);
 
-  // Storage
   useEffect(()=>{
     try{const d=JSON.parse(localStorage.getItem("cb1")||"{}");if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.base)setBase(d.base);if(d.vis!==undefined)setVis(d.vis);if(d.ls)setLastSync(d.ls);}catch(e){}
     setLoaded(true);
   },[]);
   useEffect(()=>{if(!loaded)return;try{localStorage.setItem("cb1",JSON.stringify({accts,txns,rates,base,vis,ls:lastSync}));}catch(e){};},[accts,txns,rates,base,vis,lastSync,loaded]);
 
-  // Actions
   const nav=p=>{setPrev(page);setPage(p);};
   const addTxn=(data,keep)=>{
     setTxns(p=>[Object.assign({},data,{id:gid()}),...p]);
@@ -266,11 +291,67 @@ function App(){
   const aPrev=()=>{if(aMode==="month"){const p=aMo.split("-");const d=new Date(+p[0],+p[1]-2,1);setAMo(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));}else setAYr(y=>y-1);};
   const aNext=()=>{if(aMode==="month"){const p=aMo.split("-");const d=new Date(+p[0],+p[1],1);setAMo(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));}else setAYr(y=>y+1);};
 
+  function handleCSV(file){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const rows=parseCSV(e.target.result);setImpRows(rows);
+      const amap={};
+      rows.forEach(r=>{
+        const raw=r['账户'];if(!raw||raw==='账户')return;
+        if(!amap[raw]){const rc=(r['账户币种']||"").toUpperCase();const currency=VALID_CURS.has(rc)?rc:detectCurrency(raw);amap[raw]={name:raw,currency,type:guessAcctType(raw),count:0,selected:currency==="SGD",id:gid()};}
+        amap[raw].count++;
+      });
+      setImpAcctMap(amap);setImpStep("select");
+    };
+    reader.readAsText(file,"utf-8");
+  }
+  function buildPreview(){
+    const selAccts=Object.values(impAcctMap).filter(a=>a.selected);
+    const selNames=new Set(selAccts.map(a=>a.name));
+    const fromDate=impDateFrom+"-01";
+    const nameToId={};
+    accts.forEach(a=>{nameToId[a.name]=a.id;});
+    selAccts.forEach(a=>{if(!nameToId[a.name])nameToId[a.name]=a.id;});
+    const xferOut={},xferIn={};
+    impRows.forEach(r=>{const id=r['关联Id'];if(!id)return;if(r['交易类型']==='转出')xferOut[id]=r;if(r['交易类型']==='转入')xferIn[id]=r;});
+    const existIds=new Set(txns.map(t=>t.id));
+    const newTxns=[];
+    impRows.forEach(r=>{
+      const typ=r['交易类型'];const acctName=r['账户'];
+      const rawDate=(r['日期']||"").slice(0,10).replace(/\//g,"-");
+      if(!rawDate||rawDate<fromDate)return;
+      if(!selNames.has(acctName))return;
+      if(typ==='转入'){const out=r['关联Id']?xferOut[r['关联Id']]:null;if(out&&selNames.has(out['账户']))return;}
+      const rawAmt=parseFloat(r['金额'])||0;const amount=Math.abs(rawAmt);if(amount===0)return;
+      const rc=(r['账户币种']||"").toUpperCase();const currency=VALID_CURS.has(rc)?rc:detectCurrency(acctName);
+      const acctId=nameToId[acctName]||"";
+      const catId=CAT_MAP[r['类别']]||"other";
+      const sub=r['子类别']||"";
+      const isAdj=["余额变更","负债变更","债权变更"].includes(typ);
+      const note=[r['项目'],r['商家'],r['备注']].filter(Boolean).join(" ").trim();
+      let txnType="expense",toAcctId="",toAmount=0;
+      if(typ==="支出")txnType="expense";
+      else if(typ==="收入"||typ==="转入")txnType="income";
+      else if(typ==="转出"){txnType="transfer";const inRow=r['关联Id']?xferIn[r['关联Id']]:null;if(inRow&&selNames.has(inRow['账户'])){toAcctId=nameToId[inRow['账户']]||"";toAmount=Math.abs(parseFloat(inRow['金额'])||0)||amount;}}
+      else if(isAdj)txnType="adjust";
+      const txnId=r['关联Id']?"imp_"+r['关联Id']:gid();
+      if(existIds.has(txnId))return;existIds.add(txnId);
+      newTxns.push({id:txnId,date:rawDate,type:txnType,amount:isAdj?rawAmt:amount,currency,acctId,toAcctId,toAmount,catId,sub,note});
+    });
+    const newAccts=selAccts.filter(a=>!accts.find(x=>x.name===a.name)).map(a=>({id:a.id,name:a.name,type:a.type,currency:a.currency}));
+    setImpPreview({txns:newTxns,accts:newAccts});setImpStep("preview");
+  }
+  function confirmImport(){
+    setAccts(p=>p.concat(impPreview.accts));
+    setTxns(p=>impPreview.txns.concat(p).sort((a,b)=>b.date.localeCompare(a.date)));
+    setImpMsg("成功导入 "+impPreview.txns.length+" 条交易，新建 "+impPreview.accts.length+" 个账户。");
+    setImpStep("done");
+  }
+
   const selAcct=accts.find(a=>a.id===form.acctId);
   const selToAcct=accts.find(a=>a.id===form.toAcctId);
   const crossCur=form.type==="transfer"&&selAcct&&selToAcct&&selAcct.currency!==selToAcct.currency;
 
-  // TxnRow
   function TRow(p){
     const t=p.t;
     const cat=CATS.find(c=>c.id===t.catId);
@@ -306,7 +387,6 @@ function App(){
         )
       );
     }
-
     return ce("div",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 0",borderBottom:"0.5px solid var(--bd)"}},
       ce("div",{style:{width:34,height:34,borderRadius:8,background:iconBg+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}},ce("span",{style:{fontSize:14,color:iconBg}},iconCh)),
       ce("div",{style:{flex:1,minWidth:0,cursor:"pointer"},onClick:()=>startEdit(t)},
@@ -325,93 +405,164 @@ function App(){
   if(!loaded)return ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontSize:14}},"加载中…");
 
   const NAV=[{id:"home",e:"🏠",l:"首页"},{id:"txns",e:"📋",l:"明细"},{id:"accounts",e:"💳",l:"账户"},{id:"analytics",e:"📊",l:"分析"},{id:"settings",e:"⚙️",l:"设置"}];
-  const BBr=ce("div",{style:{flexShrink:0,borderTop:"1px solid var(--bd)",background:"var(--bg)"}},
-    ce("div",{style:{display:"flex"}},NAV.map(item=>ce("button",{key:item.id,onClick:()=>{setPage(item.id);if(item.id==="txns")setLim(80);},style:{flex:1,padding:"10px 0 8px",border:"none",background:"none",cursor:"pointer",color:page===item.id?PP:"var(--text2)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},ce("span",{style:{fontSize:16}},item.e),ce("span",{style:{fontSize:10,fontWeight:page===item.id?500:400}},item.l)))),
-    ce("div",{style:{padding:"8px 14px 10px",background:"var(--bg2)",borderTop:"0.5px solid var(--bd)"}},ce(Btn,{style:{width:"100%"},onClick:()=>{setForm(mkForm());nav("addTxn");}},"+ 记一笔"))
+
+  // Bottom bar: "记一笔" only on home, tabs always visible
+  const BBr=ce("div",{style:{flexShrink:0,background:"var(--bg)",borderTop:"1px solid var(--bd)"}},
+    page==="home"&&ce("div",{style:{padding:"8px 14px 6px",background:"var(--bg2)",borderBottom:"0.5px solid var(--bd)"}},
+      ce(Btn,{style:{width:"100%"},onClick:()=>{setForm(mkForm());nav("addTxn");}},"+ 记一笔")
+    ),
+    ce("div",{style:{display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}},
+      NAV.map(item=>ce("button",{key:item.id,onClick:()=>{setPage(item.id);if(item.id==="txns")setLim(80);},style:{flex:1,padding:"10px 0 8px",border:"none",background:"none",cursor:"pointer",color:page===item.id?PP:"var(--text2)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
+        ce("span",{style:{fontSize:16}},item.e),
+        ce("span",{style:{fontSize:10,fontWeight:page===item.id?500:400}},item.l)
+      ))
+    )
+  );
+
+  const wrapStyle={background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"};
+
+  // Import page
+  if(page==="import") return ce("div",{style:wrapStyle},
+    ce("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
+      ce("button",{onClick:()=>setPage("settings"),style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
+      ce("span",{style:{fontSize:16,fontWeight:500}},"导入随手记数据"),
+      impStep!=="upload"&&impStep!=="done"&&ce("button",{onClick:()=>{setImpStep("upload");setImpRows([]);setImpAcctMap({});},style:{marginLeft:"auto",padding:"5px 10px",border:"0.5px solid var(--bd)",borderRadius:8,background:"none",fontSize:12,cursor:"pointer",color:"var(--text)"}},"↩ 重新上传")
+    ),
+    ce("div",{style:{display:"flex",gap:4,padding:"0 16px 10px",flexShrink:0}},
+      ["上传文件","选择账户","确认导入"].map((s,i)=>{
+        const idx=["upload","select","preview"].indexOf(impStep);const active=i<=idx||impStep==="done";
+        return ce("div",{key:i,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}},
+          ce("div",{style:{width:26,height:26,borderRadius:13,background:active?PP:"var(--bg2)",border:"0.5px solid "+(active?PP:"var(--bd)"),color:active?"white":"var(--text2)",fontSize:12,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center"}},i+1),
+          ce("div",{style:{fontSize:10,color:active?PP:"var(--text2)",textAlign:"center"}},s)
+        );
+      })
+    ),
+    ce("div",{style:{flex:1,overflowY:"auto",padding:"0 16px 16px"}},
+      impStep==="upload"&&ce("div",{style:CARD},
+        ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:8}},"上传随手记导出 CSV"),
+        ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:14,lineHeight:1.8}},"余额从流水自动计算。转账两端都在选中列表时正确匹配，否则单端记为收入/支出。"),
+        ce("input",{type:"file",accept:".csv",onChange:e=>{const f=e.target.files[0];if(f)handleCSV(f);e.target.value="";},style:Object.assign({},IPT,{fontSize:13})})
+      ),
+      impStep==="select"&&ce("div",null,
+        ce("div",{style:CARD},
+          ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"解析成功 · "+impRows.length.toLocaleString()+" 条"),
+          ce("div",{style:{marginBottom:12}},ce(Lbl,null,"导入起始日期"),ce("input",{type:"month",value:impDateFrom,onChange:e=>setImpDateFrom(e.target.value),style:IPT})),
+          ce("div",{style:{display:"flex",gap:8}},
+            [["仅SGD","sgd"],["全选","all"],["清空","none"]].map(function(x){return ce("button",{key:x[1],onClick:()=>setImpAcctMap(p=>{const n=Object.assign({},p);Object.keys(n).forEach(k=>{n[k]=Object.assign({},n[k],{selected:x[1]==="all"?true:x[1]==="none"?false:n[k].currency==="SGD"});});return n;}),style:{flex:1,padding:"7px 4px",border:"0.5px solid var(--bd)",borderRadius:8,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text)"}},x[0]);})
+          )
+        ),
+        Object.values(impAcctMap).map(a=>ce("div",{key:a.name,style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:8,padding:"10px 14px"})},
+          ce("input",{type:"checkbox",checked:a.selected,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{selected:e.target.checked})})),style:{width:16,height:16,accentColor:PP,flexShrink:0}}),
+          ce("div",{style:{flex:1,minWidth:0}},
+            ce("div",{style:{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},a.name),
+            ce("div",{style:{fontSize:11,color:"var(--text2)"}},a.currency+" · "+a.count+"条")
+          ),
+          ce("select",{value:a.type,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{type:e.target.value})})),style:Object.assign({},SM,{width:"auto"})},
+            Object.entries(ALAB).map(e=>ce("option",{key:e[0],value:e[0]},e[1]))
+          )
+        )),
+        ce(Btn,{style:{width:"100%",marginBottom:16},onClick:buildPreview},"下一步：预览 →")
+      ),
+      impStep==="preview"&&ce("div",null,
+        ce("div",{style:Object.assign({},CARD,{background:PP+"12",border:"0.5px solid "+PP+"44"})},
+          ce("div",{style:{fontSize:14,fontWeight:500,color:PP,marginBottom:12}},"即将导入"),
+          ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
+            ce("div",{style:{textAlign:"center",padding:"10px 0"}},ce("div",{style:{fontSize:28,fontWeight:500}},impPreview.txns.length.toLocaleString()),ce("div",{style:{fontSize:12,color:"var(--text2)"}},"条交易记录")),
+            ce("div",{style:{textAlign:"center",padding:"10px 0"}},ce("div",{style:{fontSize:28,fontWeight:500}},impPreview.accts.length),ce("div",{style:{fontSize:12,color:"var(--text2)"}},"个新账户"))
+          )
+        ),
+        ce("div",{style:{display:"flex",gap:10,marginBottom:16}},
+          ce("button",{onClick:()=>setImpStep("select"),style:{flex:1,padding:"11px",border:"0.5px solid var(--bd)",borderRadius:10,background:"var(--bg2)",fontSize:14,cursor:"pointer",color:"var(--text)"}},"← 返回"),
+          ce(Btn,{style:{flex:2},onClick:confirmImport},"确认导入")
+        )
+      ),
+      impStep==="done"&&ce("div",{style:Object.assign({},CARD,{textAlign:"center",padding:"32px 16px"})},
+        ce("div",{style:{fontSize:48,marginBottom:12,color:GG}},"✓"),
+        ce("div",{style:{fontSize:16,fontWeight:500,marginBottom:8}},"导入成功！"),
+        ce("div",{style:{fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.7}},impMsg),
+        ce(Btn,{style:{width:"100%"},onClick:()=>{setPage("accounts");setImpStep("upload");}},"查看账户余额")
+      )
+    )
   );
 
   // Add Txn
-  if(page==="addTxn"){
-    const doAdd=keep=>{
-      const amt=parseFloat(form.amount);if(!amt||isNaN(amt))return;
-      if(form.type==="transfer"&&!form.toAcctId)return;
-      addTxn({type:form.type,date:form.datetime.slice(0,10),amount:amt,currency:selAcct?selAcct.currency:"SGD",acctId:form.acctId,toAcctId:form.toAcctId,toAmount:crossCur?parseFloat(form.toAmount)||amt:amt,catId:form.catId,sub:form.sub,note:form.note},keep);
-    };
-    return ce("div",{style:{background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}},
-      ce("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
-        ce("button",{onClick:()=>setPage(prev),style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
-        ce("span",{style:{fontSize:16,fontWeight:500}},"新增记录")
-      ),
-      ce("div",{style:{flex:1,overflowY:"auto",padding:"0 16px 16px"}},
-        ce("div",{style:CARD},
-          ce(Lbl,null,"类型"),
-          ce("div",{style:{display:"flex",gap:8,marginBottom:14}},
-            [["expense","支出",RR],["income","收入",GG],["transfer","转账",PP]].map(x=>ce("button",{key:x[0],onClick:()=>setForm(p=>Object.assign({},p,{type:x[0]})),style:{flex:1,padding:"9px 4px",border:"1.5px solid "+(form.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,background:form.type===x[0]?x[2]+"18":"var(--bg2)",color:form.type===x[0]?x[2]:"var(--text2)"}},x[1]))
+  if(page==="addTxn") return ce("div",{style:wrapStyle},
+    ce("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
+      ce("button",{onClick:()=>setPage(prev),style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
+      ce("span",{style:{fontSize:16,fontWeight:500}},"新增记录")
+    ),
+    ce("div",{style:{flex:1,overflowY:"auto",padding:"0 16px 16px"}},
+      ce("div",{style:CARD},
+        ce(Lbl,null,"类型"),
+        ce("div",{style:{display:"flex",gap:8,marginBottom:14}},
+          [["expense","支出",RR],["income","收入",GG],["transfer","转账",PP]].map(x=>ce("button",{key:x[0],onClick:()=>setForm(p=>Object.assign({},p,{type:x[0]})),style:{flex:1,padding:"9px 4px",border:"1.5px solid "+(form.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,background:form.type===x[0]?x[2]+"18":"var(--bg2)",color:form.type===x[0]?x[2]:"var(--text2)"}},x[1]))
+        ),
+        ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
+          ce("div",null,ce(Lbl,null,"时间"),ce("input",{type:"datetime-local",value:form.datetime,onChange:e=>setForm(p=>Object.assign({},p,{datetime:e.target.value})),style:IPT})),
+          ce("div",null,ce(Lbl,null,"金额"),ce("input",{type:"number",value:form.amount,onChange:e=>setForm(p=>Object.assign({},p,{amount:e.target.value})),style:IPT,placeholder:"0.00",step:"0.01"}))
+        ),
+        ce("div",{style:{marginBottom:12}},ce(Lbl,null,form.type==="transfer"?"转出账户":"账户"),
+          ce("select",{value:form.acctId,onChange:e=>setForm(p=>Object.assign({},p,{acctId:e.target.value})),style:IPT},accts.map(a=>ce("option",{key:a.id,value:a.id},a.name+" ("+a.currency+")")))
+        ),
+        form.type==="transfer"&&ce("div",{style:{marginBottom:12}},ce(Lbl,null,"转入账户"),
+          ce("select",{value:form.toAcctId,onChange:e=>setForm(p=>Object.assign({},p,{toAcctId:e.target.value})),style:IPT},ce("option",{value:""},"请选择"),accts.filter(a=>a.id!==form.acctId).map(a=>ce("option",{key:a.id,value:a.id},a.name+" ("+a.currency+")")))
+        ),
+        form.type!=="transfer"&&ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
+          ce("div",null,ce(Lbl,null,form.type==="income"?"来源":"分类"),
+            form.type==="expense"
+              ?ce("select",{value:form.catId,onChange:e=>setForm(p=>Object.assign({},p,{catId:e.target.value,sub:""})),style:IPT},CATS.map(c=>ce("option",{key:c.id,value:c.id},c.name)))
+              :ce("select",{value:form.catId,onChange:e=>setForm(p=>Object.assign({},p,{catId:e.target.value,sub:""})),style:IPT},ICATS.map(c=>ce("option",{key:c.id,value:c.id},c.name)))
           ),
-          ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
-            ce("div",null,ce(Lbl,null,"时间"),ce("input",{type:"datetime-local",value:form.datetime,onChange:e=>setForm(p=>Object.assign({},p,{datetime:e.target.value})),style:IPT})),
-            ce("div",null,ce(Lbl,null,"金额"),ce("input",{type:"number",value:form.amount,onChange:e=>setForm(p=>Object.assign({},p,{amount:e.target.value})),style:IPT,placeholder:"0.00",step:"0.01"}))
-          ),
-          ce("div",{style:{marginBottom:12}},ce(Lbl,null,form.type==="transfer"?"转出账户":"账户"),
-            ce("select",{value:form.acctId,onChange:e=>setForm(p=>Object.assign({},p,{acctId:e.target.value})),style:IPT},accts.map(a=>ce("option",{key:a.id,value:a.id},a.name+" ("+a.currency+")")))
-          ),
-          form.type==="transfer"&&ce("div",{style:{marginBottom:12}},ce(Lbl,null,"转入账户"),
-            ce("select",{value:form.toAcctId,onChange:e=>setForm(p=>Object.assign({},p,{toAcctId:e.target.value})),style:IPT},ce("option",{value:""},"请选择"),accts.filter(a=>a.id!==form.acctId).map(a=>ce("option",{key:a.id,value:a.id},a.name+" ("+a.currency+")")))
-          ),
-          form.type!=="transfer"&&ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
-            ce("div",null,ce(Lbl,null,form.type==="income"?"来源":"分类"),
-              form.type==="expense"
-                ?ce("select",{value:form.catId,onChange:e=>setForm(p=>Object.assign({},p,{catId:e.target.value,sub:""})),style:IPT},CATS.map(c=>ce("option",{key:c.id,value:c.id},c.name)))
-                :ce("select",{value:form.catId,onChange:e=>setForm(p=>Object.assign({},p,{catId:e.target.value,sub:""})),style:IPT},ICATS.map(c=>ce("option",{key:c.id,value:c.id},c.name)))
-            ),
-            ce("div",null,ce(Lbl,null,"子分类"),
-              ce("select",{value:form.sub,onChange:e=>setForm(p=>Object.assign({},p,{sub:e.target.value})),style:IPT},
-                ce("option",{value:""},"选择"),
-                (form.type==="expense"?(CATS.find(c=>c.id===form.catId)||{sub:[]}).sub:(ICATS.find(c=>c.id===form.catId)||{sub:[]}).sub).map(s=>ce("option",{key:s,value:s},s))
-              )
+          ce("div",null,ce(Lbl,null,"子分类"),
+            ce("select",{value:form.sub,onChange:e=>setForm(p=>Object.assign({},p,{sub:e.target.value})),style:IPT},
+              ce("option",{value:""},"选择"),
+              (form.type==="expense"?(CATS.find(c=>c.id===form.catId)||{sub:[]}).sub:(ICATS.find(c=>c.id===form.catId)||{sub:[]}).sub).map(s=>ce("option",{key:s,value:s},s))
             )
-          ),
-          ce("div",{style:{marginBottom:16}},ce(Lbl,null,"备注"),ce("input",{type:"text",value:form.note,onChange:e=>setForm(p=>Object.assign({},p,{note:e.target.value})),style:IPT,placeholder:"添加备注…"})),
-          ce("div",{style:{display:"flex",gap:10}},
+          )
+        ),
+        ce("div",{style:{marginBottom:16}},ce(Lbl,null,"备注"),ce("input",{type:"text",value:form.note,onChange:e=>setForm(p=>Object.assign({},p,{note:e.target.value})),style:IPT,placeholder:"添加备注…"})),
+        (function(){
+          const doAdd=keep=>{
+            const amt=parseFloat(form.amount);if(!amt||isNaN(amt))return;
+            if(form.type==="transfer"&&!form.toAcctId)return;
+            addTxn({type:form.type,date:form.datetime.slice(0,10),amount:amt,currency:selAcct?selAcct.currency:"SGD",acctId:form.acctId,toAcctId:form.toAcctId,toAmount:crossCur?parseFloat(form.toAmount)||amt:amt,catId:form.catId,sub:form.sub,note:form.note},keep);
+          };
+          return ce("div",{style:{display:"flex",gap:10}},
             ce(Btn,{style:{flex:2},onClick:()=>doAdd(false)},"确认添加"),
             ce(Btn,{style:{flex:1,background:"none",border:"0.5px solid "+PP,color:PP},onClick:()=>doAdd(true)},"再记一笔")
-          )
-        )
+          );
+        })()
       )
-    );
-  }
+    )
+  );
 
   // Add Acct
-  if(page==="addAcct"){
-    return ce("div",{style:{background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}},
-      ce("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
-        ce("button",{onClick:()=>setPage("accounts"),style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
-        ce("span",{style:{fontSize:16,fontWeight:500}},"添加账户")
-      ),
-      ce("div",{style:{flex:1,overflowY:"auto",padding:"0 16px 16px"}},
-        ce("div",{style:CARD},
-          ce("div",{style:{marginBottom:12}},ce(Lbl,null,"账户名称"),ce("input",{type:"text",value:aForm.name,onChange:e=>setAForm(p=>Object.assign({},p,{name:e.target.value})),style:IPT,placeholder:"如：OCBC 360"})),
-          ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}},
-            ce("div",null,ce(Lbl,null,"类型"),ce("select",{value:aForm.type,onChange:e=>setAForm(p=>Object.assign({},p,{type:e.target.value})),style:IPT},Object.entries(ALAB).map(e=>ce("option",{key:e[0],value:e[0]},e[1])))),
-            ce("div",null,ce(Lbl,null,"币种"),ce("select",{value:aForm.currency,onChange:e=>setAForm(p=>Object.assign({},p,{currency:e.target.value})),style:IPT},["SGD","CNY","GBP","USD"].map(c=>ce("option",{key:c,value:c},c))))
-          ),
-          ce(Btn,{style:{width:"100%"},onClick:()=>{if(!aForm.name)return;setAccts(p=>[...p,{id:gid(),name:aForm.name,type:aForm.type,currency:aForm.currency}]);setAForm({name:"",type:"fund",currency:"SGD"});setPage("accounts");}},"添加账户")
-        )
+  if(page==="addAcct") return ce("div",{style:wrapStyle},
+    ce("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
+      ce("button",{onClick:()=>setPage("accounts"),style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
+      ce("span",{style:{fontSize:16,fontWeight:500}},"添加账户")
+    ),
+    ce("div",{style:{flex:1,overflowY:"auto",padding:"0 16px 16px"}},
+      ce("div",{style:CARD},
+        ce("div",{style:{marginBottom:12}},ce(Lbl,null,"账户名称"),ce("input",{type:"text",value:aForm.name,onChange:e=>setAForm(p=>Object.assign({},p,{name:e.target.value})),style:IPT,placeholder:"如：OCBC 360"})),
+        ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}},
+          ce("div",null,ce(Lbl,null,"类型"),ce("select",{value:aForm.type,onChange:e=>setAForm(p=>Object.assign({},p,{type:e.target.value})),style:IPT},Object.entries(ALAB).map(e=>ce("option",{key:e[0],value:e[0]},e[1])))),
+          ce("div",null,ce(Lbl,null,"币种"),ce("select",{value:aForm.currency,onChange:e=>setAForm(p=>Object.assign({},p,{currency:e.target.value})),style:IPT},["SGD","CNY","GBP","USD"].map(c=>ce("option",{key:c,value:c},c))))
+        ),
+        ce(Btn,{style:{width:"100%"},onClick:()=>{if(!aForm.name)return;setAccts(p=>[...p,{id:gid(),name:aForm.name,type:aForm.type,currency:aForm.currency}]);setAForm({name:"",type:"fund",currency:"SGD"});setPage("accounts");}},"添加账户")
       )
-    );
-  }
+    )
+  );
 
-  // Main
-  return ce("div",{style:{background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}},
+  // Main pages
+  return ce("div",{style:wrapStyle},
     ce("div",{style:{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}},
 
-      // Top bar
       page!=="home"&&ce("div",{style:{flexShrink:0,padding:"14px 16px 10px",background:"var(--bg)",borderBottom:"0.5px solid var(--bd)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
         ce("span",{style:{fontSize:16,fontWeight:500}},page==="txns"?"交易明细":page==="accounts"?"我的账户":page==="analytics"?"数据分析":"设置"),
         ce("button",{onClick:()=>setVis(v=>!v),style:{background:"none",border:"0.5px solid var(--bd)",borderRadius:20,width:32,height:32,cursor:"pointer",color:"var(--text2)",display:"flex",alignItems:"center",justifyContent:"center"}},ce(Eye,{open:vis}))
       ),
 
-      // Accounts net worth banner
       page==="accounts"&&ce("div",{style:{flexShrink:0,background:PP,color:"white",padding:"14px 18px"}},
         ce("div",{style:{fontSize:11,opacity:0.75,marginBottom:2}},"净资产 · "+base),
         ce("div",{style:{fontSize:24,fontWeight:500,marginBottom:4}},ce(Num,{v:fmtB(net,base),vis})),
@@ -421,7 +572,6 @@ function App(){
         )
       ),
 
-      // Analytics top bar
       page==="analytics"&&ce("div",{style:{flexShrink:0,background:"var(--bg)",borderBottom:"0.5px solid var(--bd)",padding:"10px 14px 0"}},
         ce("div",{style:{display:"flex",gap:6,marginBottom:8}},
           [["month","月"],["year","年"],["custom","自定义"]].map(x=>ce("button",{key:x[0],onClick:()=>setAMode(x[0]),style:{padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:500,border:"0.5px solid "+(aMode===x[0]?PP:"var(--bd)"),background:aMode===x[0]?PP:"var(--bg2)",color:aMode===x[0]?"white":"var(--text)",cursor:"pointer"}},x[1]))
@@ -521,7 +671,7 @@ function App(){
 
         // ACCOUNTS
         page==="accounts"&&ce("div",{style:{paddingBottom:16,paddingTop:10}},
-          Object.entries(ALAB).map(entry=>{
+          Object.entries(ALAB).map(function(entry){
             const typ=entry[0],label=entry[1];
             const list=accts.filter(a=>a.type===typ||(typ==="liability"&&a.type==="credit"));
             if(!list.length)return null;
@@ -536,10 +686,7 @@ function App(){
                 return ce("div",{key:a.id,style:{padding:"9px 0",borderBottom:"0.5px solid var(--bd)"}},
                   ce("div",{style:{display:"flex",alignItems:"center",gap:6}},
                     ce("div",{style:{width:8,height:8,borderRadius:"50%",background:CLR[i%CLR.length],flexShrink:0}}),
-                    ce("div",{style:{flex:1,minWidth:0}},
-                      ce("div",{style:{fontSize:13}},a.name),
-                      ce("div",{style:{fontSize:11,color:"var(--text2)"}},(ALAB[a.type]||a.type)+" · "+a.currency)
-                    ),
+                    ce("div",{style:{flex:1,minWidth:0}},ce("div",{style:{fontSize:13}},a.name),ce("div",{style:{fontSize:11,color:"var(--text2)"}},(ALAB[a.type]||a.type)+" · "+a.currency)),
                     ce("div",{style:{textAlign:"right",marginRight:4,flexShrink:0}},
                       ce("div",{style:{fontSize:13,fontWeight:500,color:bal<0?RR:"var(--text)"}},ce(Num,{v:fmtA(bal,a.currency),vis})),
                       a.currency!=="SGD"&&ce("div",{style:{fontSize:10,color:"var(--text2)"}},"≈"+fmtS(toSGD(bal,a.currency,rates,mo)))
@@ -559,10 +706,7 @@ function App(){
                     )
                   ),
                   adjId===a.id&&ce("div",{style:{marginTop:8,padding:10,background:"var(--bg2)",borderRadius:8,display:"flex",gap:8,alignItems:"flex-end"}},
-                    ce("div",{style:{flex:1}},
-                      ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:4}},"修正后余额 ("+a.currency+")"),
-                      ce("input",{type:"number",value:adjVal,onChange:e=>setAdjVal(e.target.value),style:Object.assign({},IPT,{padding:"7px 10px",fontSize:13}),step:"0.01",placeholder:"输入实际余额"})
-                    ),
+                    ce("div",{style:{flex:1}},ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:4}},"修正后余额 ("+a.currency+")"),ce("input",{type:"number",value:adjVal,onChange:e=>setAdjVal(e.target.value),style:Object.assign({},IPT,{padding:"7px 10px",fontSize:13}),step:"0.01",placeholder:"输入实际余额"})),
                     ce("div",{style:{display:"flex",gap:6}},
                       ce("button",{onClick:()=>adjBal(a.id),style:{padding:"7px 12px",border:"none",borderRadius:8,background:PP,color:"white",fontSize:12,cursor:"pointer"}},"确认"),
                       ce("button",{onClick:()=>setAdjId(null),style:{padding:"7px 8px",border:"0.5px solid var(--bd)",borderRadius:8,background:"none",fontSize:12,cursor:"pointer",color:"var(--text2)"}},"×")
@@ -580,11 +724,7 @@ function App(){
           aTab==="cat"&&(!catBD.length
             ?ce("div",{style:Object.assign({},CARD,{textAlign:"center",color:"var(--text2)",fontSize:13})},"暂无支出记录")
             :ce(Fragment,null,
-              ce("div",{style:CARD},
-                ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"支出分类"),
-                ce("div",{style:{fontSize:20,fontWeight:500,color:RR,marginBottom:10}},ce(Num,{v:fmtS(aExp),vis})),
-                ce(DonutChart,{data:catBD,total:aExp})
-              ),
+              ce("div",{style:CARD},ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"支出分类"),ce("div",{style:{fontSize:20,fontWeight:500,color:RR,marginBottom:10}},ce(Num,{v:fmtS(aExp),vis})),ce(DonutChart,{data:catBD,total:aExp})),
               catBD.map(c=>{
                 const isExp=expCats.has(c.id);const pct=aExp>0?(c.value/aExp*100).toFixed(1):0;
                 return ce("div",{key:c.id,style:Object.assign({},CARD,{padding:0,overflow:"hidden"})},
@@ -595,57 +735,36 @@ function App(){
                     ce("span",{style:{fontSize:11,color:"var(--text2)"}},isExp?"▲":"▼")
                   ),
                   isExp&&ce("div",{style:{borderTop:"0.5px solid var(--bd)"}},
-                    c.subArr.map(s=>{
-                      const sp=c.value>0?(s.value/c.value*100).toFixed(0):0;
-                      return ce("div",{key:s.name,onClick:()=>{setFlt(Object.assign({},IF0,{catId:c.id}));setPage("txns");},style:{display:"flex",alignItems:"center",gap:10,padding:"7px 14px 7px 28px",borderBottom:"0.5px solid var(--bd)",cursor:"pointer",background:"var(--bg2)"}},
-                        ce("div",{style:{flex:1}},ce("div",{style:{fontSize:12}},s.name),ce("div",{style:{width:"100%",height:2,background:"var(--bg)",borderRadius:1,marginTop:2}},ce("div",{style:{width:sp+"%",height:"100%",background:c.color+"88",borderRadius:1}}))),
-                        ce("div",{style:{fontSize:12}},ce(Num,{v:"S$"+s.value.toFixed(2),vis})),
-                        ce("span",{style:{fontSize:10,color:PP}},"→")
-                      );
-                    })
+                    c.subArr.map(s=>{const sp=c.value>0?(s.value/c.value*100).toFixed(0):0;return ce("div",{key:s.name,onClick:()=>{setFlt(Object.assign({},IF0,{catId:c.id}));setPage("txns");},style:{display:"flex",alignItems:"center",gap:10,padding:"7px 14px 7px 28px",borderBottom:"0.5px solid var(--bd)",cursor:"pointer",background:"var(--bg2)"}},
+                      ce("div",{style:{flex:1}},ce("div",{style:{fontSize:12}},s.name),ce("div",{style:{width:"100%",height:2,background:"var(--bg)",borderRadius:1,marginTop:2}},ce("div",{style:{width:sp+"%",height:"100%",background:c.color+"88",borderRadius:1}}))),
+                      ce("div",{style:{fontSize:12}},ce(Num,{v:"S$"+s.value.toFixed(2),vis})),
+                      ce("span",{style:{fontSize:10,color:PP}},"→")
+                    );})
                   )
                 );
               })
             )
           ),
           aTab==="trend"&&ce(Fragment,null,
-            ce("div",{style:CARD},
-              ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},aRange.label+" 收支趋势"),
-              ce(BarChart,{data:trendData})
-            ),
+            ce("div",{style:CARD},ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},aRange.label+" 收支趋势"),ce(BarChart,{data:trendData})),
             ce("div",{style:CARD},
               trendData.slice().reverse().filter(d=>d.income>0||d.expense>0).map((d,i)=>{
                 const n=d.income-d.expense;
                 return ce("div",{key:i,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"0.5px solid var(--bd)"}},
                   ce("span",{style:{fontSize:13,fontWeight:500,minWidth:46}},d.month),
-                  ce("div",{style:{display:"flex",gap:8,fontSize:12}},
-                    ce("span",{style:{color:GG}},"收 ",ce(Num,{v:fmtS(d.income),vis})),
-                    ce("span",{style:{color:RR}},"支 ",ce(Num,{v:fmtS(d.expense),vis})),
-                    ce("span",{style:{color:n>=0?GG:RR,fontWeight:500}},"净 ",ce(Num,{v:(n>=0?"+":"")+fmtS(n),vis}))
-                  )
+                  ce("div",{style:{display:"flex",gap:8,fontSize:12}},ce("span",{style:{color:GG}},"收 ",ce(Num,{v:fmtS(d.income),vis})),ce("span",{style:{color:RR}},"支 ",ce(Num,{v:fmtS(d.expense),vis})),ce("span",{style:{color:n>=0?GG:RR,fontWeight:500}},"净 ",ce(Num,{v:(n>=0?"+":"")+fmtS(n),vis})))
                 );
               })
             )
           ),
-          aTab==="income"&&(()=>{
+          aTab==="income"&&(function(){
             const m={};
             aTxns.filter(t=>t.type==="income").forEach(t=>{const k=t.sub||"其他";if(!m[k])m[k]={name:k,value:0,color:CLR[Object.keys(m).length%CLR.length]};m[k].value+=toSGD(t.amount,t.currency,rates,t.date.slice(0,7));});
             const items=Object.values(m).map(x=>Object.assign({},x,{value:+x.value.toFixed(2)})).sort((a,b)=>b.value-a.value);
             if(!items.length)return ce("div",{style:Object.assign({},CARD,{textAlign:"center",color:"var(--text2)",fontSize:13})},"暂无收入记录");
             return ce(Fragment,null,
-              ce("div",{style:CARD},
-                ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"收入构成"),
-                ce("div",{style:{fontSize:20,fontWeight:500,color:GG,marginBottom:10}},ce(Num,{v:fmtS(aInc),vis})),
-                ce(DonutChart,{data:items,total:aInc})
-              ),
-              items.map((item,i)=>{
-                const pct=aInc>0?(item.value/aInc*100).toFixed(1):0;
-                return ce("div",{key:i,style:CARD},ce("div",{style:{display:"flex",alignItems:"center",gap:10}},
-                  ce("div",{style:{width:10,height:10,borderRadius:"50%",background:item.color,flexShrink:0}}),
-                  ce("div",{style:{flex:1}},ce("div",{style:{fontSize:13}},item.name),ce("div",{style:{width:"100%",height:3,background:"var(--bg3)",borderRadius:2,marginTop:3}},ce("div",{style:{width:pct+"%",height:"100%",background:item.color,borderRadius:2}}))),
-                  ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,fontWeight:500}},ce(Num,{v:"S$"+item.value.toFixed(2),vis})),ce("div",{style:{fontSize:11,color:"var(--text2)"}},pct+"%"))
-                ));
-              })
+              ce("div",{style:CARD},ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"收入构成"),ce("div",{style:{fontSize:20,fontWeight:500,color:GG,marginBottom:10}},ce(Num,{v:fmtS(aInc),vis})),ce(DonutChart,{data:items,total:aInc})),
+              items.map((item,i)=>{const pct=aInc>0?(item.value/aInc*100).toFixed(1):0;return ce("div",{key:i,style:CARD},ce("div",{style:{display:"flex",alignItems:"center",gap:10}},ce("div",{style:{width:10,height:10,borderRadius:"50%",background:item.color,flexShrink:0}}),ce("div",{style:{flex:1}},ce("div",{style:{fontSize:13}},item.name),ce("div",{style:{width:"100%",height:3,background:"var(--bg3)",borderRadius:2,marginTop:3}},ce("div",{style:{width:pct+"%",height:"100%",background:item.color,borderRadius:2}}))),ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:13,fontWeight:500}},ce(Num,{v:"S$"+item.value.toFixed(2),vis})),ce("div",{style:{fontSize:11,color:"var(--text2)"}},pct+"%"))));})
             );
           })()
         ),
@@ -657,21 +776,23 @@ function App(){
             ce("div",{style:{display:"flex",gap:8}},["SGD","CNY","USD","GBP"].map(c=>ce("button",{key:c,onClick:()=>setBase(c),style:{flex:1,padding:"8px 4px",border:"0.5px solid "+(base===c?PP:"var(--bd)"),borderRadius:8,background:base===c?PP:"var(--bg2)",color:base===c?"white":"var(--text)",fontSize:13,fontWeight:base===c?500:400,cursor:"pointer"}},c)))
           ),
           ce("div",{style:CARD},
+            ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:6}},"导入历史数据"),
+            ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.7}},"支持随手记 CSV 导出文件，余额从流水自动累计。"),
+            ce(Btn,{style:{width:"100%"},onClick:()=>nav("import")},"导入随手记数据 →")
+          ),
+          ce("div",{style:CARD},
             ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
               ce("div",{style:{fontSize:13,fontWeight:500}},"汇率同步 CNY→SGD"),
               ce("button",{onClick:syncRates,style:{padding:"4px 10px",border:"0.5px solid "+PP,borderRadius:20,background:PP+"12",color:PP,fontSize:12,cursor:"pointer"}},syncSt==="ing"?"同步中…":syncSt==="ok"?"✓ 已同步":syncSt==="err"?"✗ 失败":"立即同步")
             ),
             ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:8}},lastSync?"上次："+lastSync:"每月自动同步"),
-            Object.entries(rates).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(e=>ce("div",{key:e[0],style:{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:"0.5px solid var(--bd)"}},ce("span",{style:{color:"var(--text2)"}},e[0]),ce("span",{style:{fontWeight:500}},"1 CNY = "+e[1]+" SGD")))
+            Object.entries(rates).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(function(e){return ce("div",{key:e[0],style:{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:"0.5px solid var(--bd)"}},ce("span",{style:{color:"var(--text2)"}},e[0]),ce("span",{style:{fontWeight:500}},"1 CNY = "+e[1]+" SGD"));})
           ),
           ce("div",{style:CARD},
             ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},"数据备份 / 恢复"),
             ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
               ce("button",{onClick:exportJSON,style:{padding:"10px",border:"0.5px solid "+PP,borderRadius:9,background:PP+"12",color:PP,fontSize:13,fontWeight:500,cursor:"pointer"}},"↓ 导出备份 JSON"),
-              ce("div",null,
-                ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:6}},"从备份恢复"),
-                ce("input",{type:"file",accept:".json",onChange:e=>{const f=e.target.files[0];if(f)restoreJSON(f);e.target.value="";},style:Object.assign({},IPT,{fontSize:12})})
-              )
+              ce("div",null,ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:6}},"从备份恢复"),ce("input",{type:"file",accept:".json",onChange:e=>{const f=e.target.files[0];if(f)restoreJSON(f);e.target.value="";},style:Object.assign({},IPT,{fontSize:12})}))
             )
           )
         )
@@ -680,17 +801,16 @@ function App(){
     ),
 
     // Context menu
-    menuId&&(()=>{
+    menuId&&(function(){
       const a=accts.find(x=>x.id===menuId);if(!a)return null;
       const bal=bals[a.id]||0;
       const tc=txns.filter(t=>t.acctId===a.id||t.toAcctId===a.id).length;
       return ce(Fragment,null,
         ce("div",{onClick:()=>setMenuId(null),style:{position:"fixed",inset:0,zIndex:9998}}),
         ce("div",{style:{position:"fixed",top:menuPos.top,right:menuPos.right,background:"var(--bg)",border:"0.5px solid var(--bd2)",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",zIndex:9999,minWidth:130,overflow:"hidden"}},
-          [
-            {l:"编辑",fn:()=>{setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);}},
-            {l:"调整余额",fn:()=>{setAdjId(a.id);setAdjVal(bal.toFixed(2));setMenuId(null);}},
-            {l:"删除",fn:()=>{if(tc>0){alert("有关联流水，无法删除");return;}setAccts(p=>p.filter(x=>x.id!==a.id));setMenuId(null);},danger:true,disabled:tc>0},
+          [{l:"编辑",fn:()=>{setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);}},
+           {l:"调整余额",fn:()=>{setAdjId(a.id);setAdjVal(bal.toFixed(2));setMenuId(null);}},
+           {l:"删除",fn:()=>{if(tc>0){alert("有关联流水，无法删除");return;}setAccts(p=>p.filter(x=>x.id!==a.id));setMenuId(null);},danger:true,disabled:tc>0}
           ].map((item,i)=>ce("button",{key:item.l,onClick:item.disabled?undefined:item.fn,style:{display:"block",width:"100%",padding:"12px 16px",border:"none",borderBottom:i<2?"0.5px solid var(--bd)":"none",background:"var(--bg)",textAlign:"left",fontSize:14,color:item.disabled?"var(--bd2)":item.danger?RR:"var(--text)",cursor:item.disabled?"not-allowed":"pointer"}},item.l))
         )
       );
