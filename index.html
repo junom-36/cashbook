@@ -73,9 +73,16 @@ function detectCurrency(name){
 }
 function guessAcctType(name){
   const n=(name||"").toLowerCase();
-  if(n.includes("信用卡")||n.includes("credit")||n.includes("白条")||n.includes("花呗")||n.includes("借呗"))return "liability";
-  if(n.includes("moomoo")||n.includes("证券")||n.includes("基金")||n.includes("余额宝")||n.includes("理财")||n.includes("fullerton")||n.includes("定期"))return "investment";
-  if(n.includes("支付宝")||n.includes("微信")||n.includes("grab"))return "virtual";
+  // 前缀优先判断
+  if(n.startsWith("投资-")||n.startsWith("投资_"))return "investment";
+  if(n.startsWith("负债-")||n.startsWith("负债_"))return "liability";
+  if(n.startsWith("债权-")||n.startsWith("债权_"))return "receivable";
+  if(n.startsWith("虚拟账户-")||n.startsWith("虚拟账户_")||n.startsWith("虚拟-"))return "virtual";
+  // 关键词判断
+  if(n.includes("信用卡")||n.includes("credit")||n.includes("白条")||n.includes("花呗")||n.includes("借呗")||n.includes("拿去花")||n.includes("白金"))return "liability";
+  if(n.includes("应收")||n.includes("债权"))return "receivable";
+  if(n.includes("moomoo")||n.includes("证券")||n.includes("基金")||n.includes("etf")||n.includes("余额宝")||n.includes("理财")||n.includes("fullerton")||n.includes("定期")||n.includes("黄金")||n.includes("短债")||n.includes("朝朝")||n.includes("懒人"))return "investment";
+  if(n.includes("支付宝")||n.includes("微信")||n.includes("grab")||n.includes("星巴克")||n.includes("荷包"))return "virtual";
   if(n.includes("现金"))return "cash";
   return "fund";
 }
@@ -451,16 +458,33 @@ function App(){
             [["仅SGD","sgd"],["全选","all"],["清空","none"]].map(function(x){return ce("button",{key:x[1],onClick:()=>setImpAcctMap(p=>{const n=Object.assign({},p);Object.keys(n).forEach(k=>{n[k]=Object.assign({},n[k],{selected:x[1]==="all"?true:x[1]==="none"?false:n[k].currency==="SGD"});});return n;}),style:{flex:1,padding:"7px 4px",border:"0.5px solid var(--bd)",borderRadius:8,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text)"}},x[0]);})
           )
         ),
-        Object.values(impAcctMap).map(a=>ce("div",{key:a.name,style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:8,padding:"10px 14px"})},
-          ce("input",{type:"checkbox",checked:a.selected,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{selected:e.target.checked})})),style:{width:16,height:16,accentColor:PP,flexShrink:0}}),
-          ce("div",{style:{flex:1,minWidth:0}},
-            ce("div",{style:{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},a.name),
-            ce("div",{style:{fontSize:11,color:"var(--text2)"}},a.currency+" · "+a.count+"条")
-          ),
-          ce("select",{value:a.type,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{type:e.target.value})})),style:Object.assign({},SM,{width:"auto"})},
-            Object.entries(ALAB).map(e=>ce("option",{key:e[0],value:e[0]},e[1]))
-          )
-        )),
+        // 按账户类型分组显示
+        (function(){
+          const typeOrder=[["fund","资金账户"],["cash","现金"],["virtual","虚拟账户"],["liability","信用卡/负债"],["investment","投资账户"],["receivable","债权账户"]];
+          const allItems=Object.values(impAcctMap);
+          return typeOrder.map(function(te){
+            const typ=te[0],label=te[1];
+            const group=allItems.filter(a=>a.type===typ);
+            if(!group.length)return null;
+            const selCount=group.filter(a=>a.selected).length;
+            return ce("div",{key:typ,style:CARD},
+              ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
+                ce("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),
+                ce("span",{style:{fontSize:11,color:"var(--text2)"}},selCount+"/"+group.length+" 已选")
+              ),
+              group.map(a=>ce("div",{key:a.name,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"0.5px solid var(--bd)"}},
+                ce("input",{type:"checkbox",checked:a.selected,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{selected:e.target.checked})})),style:{width:16,height:16,accentColor:PP,flexShrink:0}}),
+                ce("div",{style:{flex:1,minWidth:0}},
+                  ce("div",{style:{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},a.name),
+                  ce("div",{style:{fontSize:11,color:"var(--text2)"}},a.currency+" · "+a.count+"条")
+                ),
+                ce("select",{value:a.type,onChange:e=>setImpAcctMap(p=>Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{type:e.target.value})})),style:Object.assign({},SM,{width:"auto",flexShrink:0})},
+                  Object.entries(ALAB).map(e=>ce("option",{key:e[0],value:e[0]},e[1]))
+                )
+              ))
+            );
+          });
+        })(),
         ce(Btn,{style:{width:"100%",marginBottom:16},onClick:buildPreview},"下一步：预览 →")
       ),
       impStep==="preview"&&ce("div",null,
