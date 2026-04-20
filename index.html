@@ -326,6 +326,7 @@ function App(){
     impRows.forEach(r=>{
       const typ=r['交易类型'];const acctName=r['账户'];
       const rawDate=(r['日期']||"").slice(0,10).replace(/\//g,"-");
+      const rawDateTime=(r['日期']||"").replace(/\//g,"-").replace(" ","T");
       if(!rawDate||rawDate<fromDate)return;
       if(!selNames.has(acctName))return;
       const rawAmt=parseFloat(r['金额'])||0;const amount=Math.abs(rawAmt);if(amount===0)return;
@@ -370,7 +371,7 @@ function App(){
       }
       else if(isAdj) txnType="adjust";
 
-      const txnId=r['关联Id']?"imp_"+r['关联Id']+"_"+typ:("imp_"+rawDate+"_"+acctName+"_"+rawAmt+"_"+(r['备注']||""));
+      const txnId=r['关联Id']?"imp_"+r['关联Id']+"_"+typ:("imp_"+rawDateTime+"_"+acctName+"_"+rawAmt);
       if(existIds.has(txnId))return;existIds.add(txnId);
       newTxns.push({id:txnId,date:rawDate,type:txnType,amount:isAdj?rawAmt:amount,currency,acctId,toAcctId,toAmount,catId,sub,note});
     });
