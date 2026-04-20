@@ -343,31 +343,35 @@ function App(){
       if(typ==="支出") txnType="expense";
       else if(typ==="收入") txnType="income";
       else if(typ==="转出"){
-        // 转出方：找对端转入
         const inRow=r['关联Id']?xferIn[r['关联Id']]:null;
         if(inRow&&selNames.has(inRow['账户'])){
-          // 两端都在选中列表：记为 transfer，转出方为主记录
           txnType="transfer";
           toAcctId=nameToId[inRow['账户']]||"";
           toAmount=Math.abs(parseFloat(inRow['金额'])||0)||amount;
-          // 用转出方的 id 作为唯一key，转入方跳过
           const txnId="imp_"+r['关联Id'];
           if(existIds.has(txnId))return;existIds.add(txnId);
           newTxns.push({id:txnId,date:rawDate,type:"transfer",amount,currency,acctId,toAcctId,toAmount,catId,sub,note});
           return;
         } else {
-          // 对端不在列表：单边记为支出
           txnType="expense";
         }
       }
       else if(typ==="转入"){
-        // 转入方：检查对端转出是否已经处理
         const outRow=r['关联Id']?xferOut[r['关联Id']]:null;
         if(outRow&&selNames.has(outRow['账户'])){
-          // 对端转出已在列表，transfer 已由转出方记录，跳过
+          // 对端转出已处理，但需要确认toAcctId是否正确设置
+          // 找到对应的transfer记录，确保toAcctId指向本账户
+          const txnId="imp_"+r['关联Id'];
+          if(!existIds.has(txnId)){
+            // 对端transfer还没处理，先处理对端
+            toAcctId=acctId;
+            const outAcctId=nameToId[outRow['账户']]||"";
+            const outAmt=Math.abs(parseFloat(outRow['金额'])||0)||amount;
+            existIds.add(txnId);
+            newTxns.push({id:txnId,date:rawDate,type:"transfer",amount:outAmt,currency,acctId:outAcctId,toAcctId:acctId,toAmount:amount,catId,sub,note});
+          }
           return;
         } else {
-          // 对端不在列表：单边记为收入
           txnType="income";
         }
       }
