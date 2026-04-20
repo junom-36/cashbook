@@ -520,8 +520,10 @@ function App(){
               ))
             );
           });
-        })(),
-        ce(Btn,{style:{width:"100%",marginBottom:16},onClick:buildPreview},"下一步：预览 →")
+        })()
+      ),
+      ce("div",{style:{padding:"0 0 16px"}},
+        ce(Btn,{style:{width:"100%"},onClick:buildPreview},"下一步：预览 →")
       ),
       impStep==="preview"&&ce("div",null,
         ce("div",{style:Object.assign({},CARD,{background:PP+"12",border:"0.5px solid "+PP+"44"})},
