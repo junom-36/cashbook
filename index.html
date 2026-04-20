@@ -247,7 +247,7 @@ function App(){
   },[txns,rates,aRange,aMode]);
   const fltTxns=useMemo(()=>txns.filter(t=>{
     if(flt.type!=="all"&&t.type!==flt.type)return false;
-    if(t.type==="adjust"&&flt.type!=="adjust")return false;
+    if(t.type==="adjust"&&flt.type!=="adjust"&&!flt.acctId)return false;
     if(flt.dateFrom&&t.date<flt.dateFrom)return false;
     if(flt.dateTo&&t.date>flt.dateTo)return false;
     if(flt.catId&&t.catId!==flt.catId)return false;
@@ -335,6 +335,8 @@ function App(){
       const catId=CAT_MAP[r['类别']]||"other";
       const sub=r['子类别']||"";
       const isAdj=["余额变更","负债变更","债权变更"].includes(typ);
+      // 负债变更：正数=负债增加=余额变负，需要取反存储
+      const adjSignFlip=typ==="负债变更";
       const note=[r['项目'],r['商家'],r['备注']].filter(Boolean).join(" ").trim();
       let txnType="expense",toAcctId="",toAmount=0;
 
@@ -373,7 +375,7 @@ function App(){
 
       const txnId=r['关联Id']?"imp_"+r['关联Id']+"_"+typ:("imp_"+rawDateTime+"_"+acctName+"_"+rawAmt);
       if(existIds.has(txnId))return;existIds.add(txnId);
-      newTxns.push({id:txnId,date:rawDate,type:txnType,amount:isAdj?rawAmt:amount,currency,acctId,toAcctId,toAmount,catId,sub,note});
+      newTxns.push({id:txnId,date:rawDate,type:txnType,amount:isAdj?(adjSignFlip?-rawAmt:rawAmt):amount,currency,acctId,toAcctId,toAmount,catId,sub,note});
     });
     const newAccts=selAccts.filter(a=>!accts.find(x=>x.name===a.name)).map(a=>({id:a.id,name:a.name,type:a.type,currency:a.currency}));
     setImpPreview({txns:newTxns,accts:newAccts});setImpStep("preview");
