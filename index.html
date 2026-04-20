@@ -842,6 +842,10 @@ function App(){
             Object.entries(rates).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(function(e){return ce("div",{key:e[0],style:{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:"0.5px solid var(--bd)"}},ce("span",{style:{color:"var(--text2)"}},e[0]),ce("span",{style:{fontWeight:500}},"1 CNY = "+e[1]+" SGD"));})
           ),
           ce("div",{style:CARD},
+            ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},"危险操作"),
+            ce("button",{onClick:()=>{if(confirm("确定要清空所有数据吗？此操作不可撤销！")){setAccts([]);setTxns([]);setRates(DEFRTS);localStorage.removeItem("cb1");alert("已清空所有数据。");}},style:{width:"100%",padding:"10px",border:"0.5px solid "+RR,borderRadius:9,background:RR+"12",color:RR,fontSize:13,fontWeight:500,cursor:"pointer"}},"🗑 清空所有数据")
+          ),
+          ce("div",{style:CARD},
             ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},"数据备份 / 恢复"),
             ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
               ce("button",{onClick:exportJSON,style:{padding:"10px",border:"0.5px solid "+PP,borderRadius:9,background:PP+"12",color:PP,fontSize:13,fontWeight:500,cursor:"pointer"}},"↓ 导出备份 JSON"),
