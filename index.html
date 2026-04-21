@@ -160,6 +160,9 @@ function App(){
   const [menuPos,setMenuPos]=useState({top:0,right:0});
   const [syncSt,setSyncSt]=useState("");
   const [lastSync,setLastSync]=useState("");
+  const [ghToken,setGhToken]=useState("");
+  const [ghSyncSt,setGhSyncSt]=useState(""); // "syncing","ok","err",""
+  const [lastGhSync,setLastGhSync]=useState("");
   const [aForm,setAForm]=useState({name:"",type:"fund",currency:"SGD"});
   const [impStep,setImpStep]=useState("upload");
   const [impRows,setImpRows]=useState([]);
@@ -167,6 +170,7 @@ function App(){
   const [impDateFrom,setImpDateFrom]=useState("2024-01");
   const [impPreview,setImpPreview]=useState({txns:[],accts:[]});
   const [impMsg,setImpMsg]=useState("");
+  const [acctOrder,setAcctOrder]=useState([]);
   const mkForm=()=>({type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:"food",sub:"",note:""});
   const [form,setForm]=useState(()=>({type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:"",toAcctId:"",catId:"food",sub:"",note:""}));
 
@@ -220,10 +224,69 @@ function App(){
     return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0])).map(e=>({date:e[0],txns:e[1],inc:e[1].filter(t=>t.type==="income").reduce((s,t)=>s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7)),0),exp:e[1].filter(t=>t.type==="expense").reduce((s,t)=>s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7)),0)}));
   },[fltTxns,lim,rates]);
 
-  useEffect(()=>{try{const d=JSON.parse(localStorage.getItem("cb1")||"{}");if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.base)setBase(d.base);if(d.vis!==undefined)setVis(d.vis);if(d.ls)setLastSync(d.ls);}catch(e){}setLoaded(true);},[]);
-  useEffect(()=>{if(!loaded)return;try{localStorage.setItem("cb1",JSON.stringify({accts,txns,rates,base,vis,ls:lastSync}));}catch(e){};},[accts,txns,rates,base,vis,lastSync,loaded]);
+  useEffect(()=>{
+    try{
+      const d=JSON.parse(localStorage.getItem("cb1")||"{}");
+      if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);
+      if(d.base)setBase(d.base);if(d.vis!==undefined)setVis(d.vis);if(d.ls)setLastSync(d.ls);
+      if(d.acctOrder)setAcctOrder(d.acctOrder);
+      // Token 单独存，更安全
+      const t=localStorage.getItem("cb_token");if(t)setGhToken(t);
+      const lgs=localStorage.getItem("cb_last_gh_sync");if(lgs)setLastGhSync(lgs);
+    }catch(e){}
+    setLoaded(true);
+  },[]);
+  useEffect(()=>{if(!loaded)return;try{localStorage.setItem("cb1",JSON.stringify({accts,txns,rates,base,vis,ls:lastSync,acctOrder}));}catch(e){};},[accts,txns,rates,base,vis,lastSync,acctOrder,loaded]);
 
-  const nav=p=>{setPrev(page);setPage(p);};
+  // GitHub 同步
+  const GH_OWNER="junom-36";
+  const GH_REPO="cashbook-data";
+  const GH_FILE="data.json";
+  const GH_API=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
+
+  const ghUpload=async()=>{
+    if(!ghToken){alert("请先在设置里填入 GitHub Token");return;}
+    setGhSyncSt("syncing");
+    try{
+      const payload={accts,txns,rates,base,vis,ls:lastSync,acctOrder};
+      const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      // 先获取当前文件的 sha（更新文件需要）
+      let sha=undefined;
+      try{
+        const r=await fetch(GH_API,{headers:{Authorization:"token "+ghToken,"Accept":"application/vnd.github.v3+json"}});
+        if(r.ok){const d=await r.json();sha=d.sha;}
+      }catch(e){}
+      const body={message:"sync "+new Date().toISOString(),content};
+      if(sha)body.sha=sha;
+      const res=await fetch(GH_API,{method:"PUT",headers:{Authorization:"token "+ghToken,"Accept":"application/vnd.github.v3+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(!res.ok)throw new Error(await res.text());
+      const now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+      setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);
+      setGhSyncSt("ok");
+    }catch(e){console.error(e);setGhSyncSt("err");}
+    setTimeout(()=>setGhSyncSt(""),3000);
+  };
+
+  const ghDownload=async()=>{
+    if(!ghToken){alert("请先在设置里填入 GitHub Token");return;}
+    setGhSyncSt("syncing");
+    try{
+      const r=await fetch(GH_API,{headers:{Authorization:"token "+ghToken,"Accept":"application/vnd.github.v3+json"}});
+      if(!r.ok)throw new Error("文件不存在或无权限");
+      const d=await r.json();
+      const payload=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));
+      if(payload.accts)setAccts(payload.accts);
+      if(payload.txns)setTxns(payload.txns);
+      if(payload.rates)setRates(payload.rates);
+      if(payload.base)setBase(payload.base);
+      if(payload.vis!==undefined)setVis(payload.vis);
+      if(payload.acctOrder)setAcctOrder(payload.acctOrder);
+      const now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+      setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);
+      setGhSyncSt("ok");
+    }catch(e){console.error(e);setGhSyncSt("err");}
+    setTimeout(()=>setGhSyncSt(""),3000);
+  };
   const addTxn=(data,keep)=>{setTxns(p=>[Object.assign({},data,{id:gid()}),...p]);if(keep)setForm(p=>Object.assign({},p,{datetime:nowDT(),amount:"",note:""}));else{setForm(mkForm());setPage(prev);}};
   const delTxn=id=>setTxns(p=>p.filter(t=>t.id!==id));
   const startEdit=t=>{setEditId(t.id);setEditF({type:t.type,date:t.date,amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||""});};
@@ -317,12 +380,29 @@ function App(){
     setImpStep("done");
   }
 
-  const selAcct=accts.find(a=>a.id===form.acctId);
+  const moveAcct=(id,dir)=>{
+    setAcctOrder(prev=>{
+      const base=prev.length?prev:accts.map(a=>a.id);
+      const idx=base.indexOf(id);
+      const list=idx===-1?[...accts.map(a=>a.id)]:base.slice();
+      const i=list.indexOf(id);
+      const target=i+dir;
+      if(target<0||target>=list.length)return prev;
+      const next=[...list];[next[i],next[target]]=[next[target],next[i]];
+      return next;
+    });
+  };
+  const sortedAccts=useMemo(()=>{
+    if(!acctOrder.length)return accts;
+    const ordered=acctOrder.map(id=>accts.find(a=>a.id===id)).filter(Boolean);
+    const rest=accts.filter(a=>!acctOrder.includes(a.id));
+    return [...ordered,...rest];
+  },[accts,acctOrder]);
   const selToAcct=accts.find(a=>a.id===form.toAcctId);
   const crossCur=form.type==="transfer"&&selAcct&&selToAcct&&selAcct.currency!==selToAcct.currency;
-  const wrapStyle={background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"};
+  const selAcct=accts.find(a=>a.id===form.acctId);{background:"var(--bg2)",height:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"};
 
-  function TRow(p){
+  const wrapStyle=
     const t=p.t;
     const cat=CATS.find(c=>c.id===t.catId);const acct=accts.find(a=>a.id===t.acctId);const toAcct=accts.find(a=>a.id===t.toAcctId);
     const isInc=t.type==="income",isX=t.type==="transfer",isAdj=t.type==="adjust";const posAdj=isAdj&&t.amount>0;
@@ -516,7 +596,7 @@ function App(){
         page==="accounts"&&ce("div",{style:{paddingBottom:16,paddingTop:10}},
           Object.entries(ALAB).map(function(entry){
             const typ=entry[0],label=entry[1];
-            const list=accts.filter(a=>a.type===typ||(typ==="liability"&&a.type==="credit"));
+            const list=sortedAccts.filter(a=>a.type===typ||(typ==="liability"&&a.type==="credit"));
             if(!list.length)return null;
             const gT=list.reduce((s,a)=>s+toBase(bals[a.id]||0,a.currency,base,rates,mo),0);
             return ce("div",{key:typ,style:CARD},
@@ -558,7 +638,19 @@ function App(){
         // SETTINGS
         page==="settings"&&ce("div",{style:{paddingBottom:16,paddingTop:10}},
           ce("div",{style:CARD},ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:8}},"统计基准币种"),ce("div",{style:{display:"flex",gap:8}},["SGD","CNY","USD","GBP"].map(c=>ce("button",{key:c,onClick:()=>setBase(c),style:{flex:1,padding:"8px 4px",border:"0.5px solid "+(base===c?PP:"var(--bd)"),borderRadius:8,background:base===c?PP:"var(--bg2)",color:base===c?"white":"var(--text)",fontSize:13,fontWeight:base===c?500:400,cursor:"pointer"}},c)))),
-          ce("div",{style:CARD},ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:6}},"导入历史数据"),ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.7}},"支持随手记 CSV 导出文件，余额从流水自动累计。"),ce(Btn,{style:{width:"100%"},onClick:()=>nav("import")},"导入随手记数据 →")),
+          ce("div",{style:CARD},
+            ce("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"☁️ 跨设备同步"),
+            ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.7}},"数据存储在你的私有 GitHub 仓库，换设备后下载即可同步。"),
+            ce("div",{style:{marginBottom:10}},
+              ce(Lbl,null,"GitHub Token（只存在本机，不会上传）"),
+              ce("input",{type:"password",value:ghToken,onChange:e=>{setGhToken(e.target.value);localStorage.setItem("cb_token",e.target.value);},style:IPT,placeholder:"ghp_xxxxxxxxxx"})
+            ),
+            ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:10}},lastGhSync?"上次同步："+lastGhSync:"尚未同步"),
+            ce("div",{style:{display:"flex",gap:8}},
+              ce("button",{onClick:ghUpload,style:{flex:1,padding:"10px",border:"none",borderRadius:9,background:PP,color:"white",fontSize:13,fontWeight:500,cursor:"pointer"}},ghSyncSt==="syncing"?"同步中…":ghSyncSt==="ok"?"✓ 已上传":ghSyncSt==="err"?"✗ 失败":"↑ 上传到云端"),
+              ce("button",{onClick:ghDownload,style:{flex:1,padding:"10px",border:"0.5px solid "+PP,borderRadius:9,background:PP+"12",color:PP,fontSize:13,fontWeight:500,cursor:"pointer"}},ghSyncSt==="syncing"?"同步中…":ghSyncSt==="ok"?"✓ 已下载":ghSyncSt==="err"?"✗ 失败":"↓ 从云端下载")
+            )
+          ),ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.7}},"支持随手记 CSV 导出文件，余额从流水自动累计。"),ce(Btn,{style:{width:"100%"},onClick:()=>nav("import")},"导入随手记数据 →")),
           ce("div",{style:CARD},
             ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},ce("div",{style:{fontSize:13,fontWeight:500}},"汇率同步 CNY→SGD"),ce("button",{onClick:syncRates,style:{padding:"4px 10px",border:"0.5px solid "+PP,borderRadius:20,background:PP+"12",color:PP,fontSize:12,cursor:"pointer"}},syncSt==="ing"?"同步中…":syncSt==="ok"?"✓ 已同步":syncSt==="err"?"✗ 失败":"立即同步")),
             ce("div",{style:{fontSize:11,color:"var(--text2)",marginBottom:8}},lastSync?"上次："+lastSync:"每月自动同步"),
@@ -578,7 +670,7 @@ function App(){
       return ce(Fragment,null,
         ce("div",{onClick:()=>setMenuId(null),style:{position:"fixed",inset:0,zIndex:9998}}),
         ce("div",{style:{position:"fixed",top:menuPos.top,right:menuPos.right,background:"var(--bg)",border:"0.5px solid var(--bd2)",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",zIndex:9999,minWidth:130,overflow:"hidden"}},
-          [{l:"编辑",fn:()=>{setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);}},{l:"调整余额",fn:()=>{setAdjId(a.id);setAdjVal(bal.toFixed(2));setMenuId(null);}},{l:"删除",fn:()=>{if(tc>0){alert("有关联流水，无法删除");return;}setAccts(p=>p.filter(x=>x.id!==a.id));setMenuId(null);},danger:true,disabled:tc>0}].map((item,i)=>ce("button",{key:item.l,onClick:item.disabled?undefined:item.fn,style:{display:"block",width:"100%",padding:"12px 16px",border:"none",borderBottom:i<2?"0.5px solid var(--bd)":"none",background:"var(--bg)",textAlign:"left",fontSize:14,color:item.disabled?"var(--bd2)":item.danger?RR:"var(--text)",cursor:item.disabled?"not-allowed":"pointer"}},item.l))
+          [{l:"↑ 上移",fn:()=>{moveAcct(a.id,-1);setMenuId(null);}},{l:"↓ 下移",fn:()=>{moveAcct(a.id,1);setMenuId(null);}},{l:"编辑",fn:()=>{setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);}},{l:"调整余额",fn:()=>{setAdjId(a.id);setAdjVal(bal.toFixed(2));setMenuId(null);}},{l:"删除",fn:()=>{if(tc>0){alert("有关联流水，无法删除");return;}setAccts(p=>p.filter(x=>x.id!==a.id));setMenuId(null);},danger:true,disabled:tc>0}].map((item,i)=>ce("button",{key:item.l,onClick:item.disabled?undefined:item.fn,style:{display:"block",width:"100%",padding:"12px 16px",border:"none",borderBottom:i<4?"0.5px solid var(--bd)":"none",background:"var(--bg)",textAlign:"left",fontSize:14,color:item.disabled?"var(--bd2)":item.danger?RR:"var(--text)",cursor:item.disabled?"not-allowed":"pointer"}},item.l))
         )
       );
     })()
