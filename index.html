@@ -1612,7 +1612,7 @@ function App() {
                 cursor:"pointer",textAlign:"center"}},
                 "恢复 JSON",
                 ce("input",{type:"file",accept:".json",style:{display:"none"},
-                  onChange:e=>{const f=e.target.files[0];if(f)restoreJSON(f);e.target.value=";}}))),
+                  onChange:e=>{const f=e.target.files[0];if(f)restoreJSON(f);e.target.value="";}}))),
             ce("div",{style:{fontSize:12,color:"var(--text2)",lineHeight:1.6}},
               "建议定期导出备份，数据存储在本地浏览器中。")),
           ce("div",{style:CARD},
