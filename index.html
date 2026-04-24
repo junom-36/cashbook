@@ -1145,7 +1145,7 @@ function App() {
             ce("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:10,lineHeight:1.7}},"Token 需要 repo 权限。数据存储在 ",ce("strong",null,GH_OWNER+"/"+GH_REPO)),
             ce("div",{style:{marginBottom:10}},
               ce(Lbl,null,"Personal Access Token"),
-              ce("input",{type:"password",value:ghToken,style:IPT,placeholder:"ghp_xxxxxxxxxxxx",onChange:function(e) { setGhToken(e.target.value); localStorage.setItem("cb_token",e.target.value); }})),
+              ce("input",{type:"text",value:ghToken,style:IPT,placeholder:"ghp_xxxxxxxxxxxx",onChange:function(e) { var v=e.target.value.trim(); setGhToken(v); localStorage.setItem("cb_token",v); }})),
             ce("div",{style:{display:"flex",gap:8,marginBottom:6}},
               ce(Btn,{onClick:ghUpload,style:{flex:1},color:ghSyncSt==="ok"?GG:ghSyncSt==="err"?RR:PP},ghSyncSt==="syncing"?"上传中…":ghSyncSt==="ok"?"✓ 成功":ghSyncSt==="err"?"✗ 失败":"↑ 上传备份"),
               ce(Btn,{onClick:ghDownload,style:{flex:1,background:"none",border:"0.5px solid "+PP,color:PP},color:"transparent"},ghSyncSt==="syncing"?"下载中…":"↓ 下载恢复")),
@@ -1161,6 +1161,9 @@ function App() {
           ce("div",{style:CARD},
             ce("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"数据导入"),
             ce(Btn,{style:{width:"100%"},onClick:function() { nav("import"); }},"导入随手记 CSV")),
+          ce("div",{style:CARD},
+            ce("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"刷新页面"),
+            ce("button",{onClick:function() { window.location.reload(); },style:{width:"100%",padding:"10px",border:"0.5px solid var(--bd)",borderRadius:8,background:"var(--bg2)",color:"var(--text)",fontSize:13,cursor:"pointer"}},"🔄 立即刷新")),
           ce("div",{style:Object.assign({},CARD,{borderColor:RR+"44"})},
             ce("div",{style:{fontSize:13,fontWeight:600,marginBottom:8,color:RR}},"危险操作"),
             ce("button",{onClick:function() {
