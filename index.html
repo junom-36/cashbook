@@ -500,6 +500,7 @@ function App() {
   }
   function ghSync() {
     if (!ghToken) { alert("请先填入 GitHub Token"); return; }
+    if (!loaded) { alert("数据还在加载中，请稍候再试"); return; }
     setGhSt("syncing");
     var tok = ghToken.trim();
     var localTime = localStorage.getItem("cb_sync_time") ? parseInt(localStorage.getItem("cb_sync_time")) : 0;
