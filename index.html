@@ -529,6 +529,18 @@ function App() {
       if (remotePayload.vis !== undefined) setVis(remotePayload.vis);
       if (remotePayload.acctOrder) setAcctOrder(remotePayload.acctOrder);
       localStorage.setItem("cb_sync_time", String(remoteTime));
+      // 立即写入 localStorage，防止刷新丢失
+      try {
+        localStorage.setItem("cb1", JSON.stringify({
+          accts: remotePayload.accts||[],
+          txns:  remotePayload.txns||[],
+          rates: remotePayload.rates||DEFRTS,
+          base:  remotePayload.base||"SGD",
+          vis:   remotePayload.vis!==undefined?remotePayload.vis:true,
+          ls:    remotePayload.ls||"",
+          acctOrder: remotePayload.acctOrder||[]
+        }));
+      } catch(e) {}
       return Promise.resolve("downloaded");
     }
 
@@ -555,13 +567,21 @@ function App() {
         var remoteTime = (remotePayload && remotePayload.syncTime) ? remotePayload.syncTime : 0;
         var localHasData = accts.length > 0 || txns.length > 0;
 
-        if (!remotePayload || (localHasData && localTime >= remoteTime)) {
-          // 本地更新或云端数据损坏 → 上传，必须带正确sha
-          return doUpload(sha);
-        } else if (!localHasData || remoteTime > localTime) {
-          // 云端更新或本地无数据 → 下载
+        if (!localHasData && remotePayload) {
+          // 本地无数据，云端有数据 → 下载
           return doDownload(remotePayload, remoteTime);
+        } else if (localHasData && !remotePayload) {
+          // 本地有数据，云端无数据 → 上传
+          return doUpload(sha);
+        } else if (localHasData && remotePayload) {
+          // 两边都有数据 → 比时间戳
+          if (remoteTime > localTime) {
+            return doDownload(remotePayload, remoteTime);
+          } else {
+            return doUpload(sha);
+          }
         } else {
+          // 两边都没数据
           return "same";
         }
       })
