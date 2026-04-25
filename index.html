@@ -503,64 +503,78 @@ function App() {
     setGhSt("syncing");
     var tok = ghToken.trim();
     var localTime = localStorage.getItem("cb_sync_time") ? parseInt(localStorage.getItem("cb_sync_time")) : 0;
-    // 先读取云端
-    fetch(GH_API, {headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
+
+    function doUpload(sha) {
+      var now = Date.now();
+      var payload = {accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,syncTime:now};
+      var content = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      var body = {message:"sync "+new Date().toISOString(), content:content};
+      if (sha) body.sha = sha;
+      return fetch(GH_API, {
+        method:"PUT",
+        headers:{Authorization:"token "+tok, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      }).then(function(r) {
+        if (!r.ok) return r.text().then(function(t){ throw new Error("上传失败 HTTP "+r.status+": "+t.slice(0,100)); });
+        localStorage.setItem("cb_sync_time", String(now));
+        return "uploaded";
+      });
+    }
+
+    function doDownload(remotePayload, remoteTime) {
+      if (remotePayload.accts) setAccts(remotePayload.accts);
+      if (remotePayload.txns)  setTxns(remotePayload.txns);
+      if (remotePayload.rates) setRates(remotePayload.rates);
+      if (remotePayload.base)  setBase(remotePayload.base);
+      if (remotePayload.vis !== undefined) setVis(remotePayload.vis);
+      if (remotePayload.acctOrder) setAcctOrder(remotePayload.acctOrder);
+      localStorage.setItem("cb_sync_time", String(remoteTime));
+      return Promise.resolve("downloaded");
+    }
+
+    fetch(GH_API, {headers:{Authorization:"token "+tok, Accept:"application/vnd.github.v3+json"}})
       .then(function(r) {
-        if (r.status===404) return null; // 云端没有文件
-        if (!r.ok) return r.text().then(function(t){ throw new Error("HTTP "+r.status+": "+t.slice(0,100)); });
+        if (r.status === 404) return {notFound: true};
+        if (!r.ok) return r.text().then(function(t){ throw new Error("读取失败 HTTP "+r.status+": "+t.slice(0,100)); });
         return r.json();
       })
       .then(function(d) {
+        if (d.notFound) {
+          // 云端没有文件，直接上传（无需sha）
+          return doUpload(null);
+        }
         var remotePayload = null;
-        var sha = null;
-        if (d && d.content) {
+        var sha = d.sha || null;
+        if (d.content) {
           try {
             remotePayload = JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));
-          } catch(e) {}
-          sha = d.sha;
+          } catch(e) {
+            remotePayload = null;
+          }
         }
-        var remoteTime = remotePayload && remotePayload.syncTime ? remotePayload.syncTime : 0;
+        var remoteTime = (remotePayload && remotePayload.syncTime) ? remotePayload.syncTime : 0;
         var localHasData = accts.length > 0 || txns.length > 0;
 
-        // 判断方向：本地有数据且比云端新，或云端没有数据 → 上传
-        // 云端有数据且比本地新，或本地没有数据 → 下载
-        var shouldUpload = localHasData && (localTime >= remoteTime || !remotePayload);
-        var shouldDownload = remotePayload && (!localHasData || remoteTime > localTime);
-
-        if (shouldUpload) {
-          var now = Date.now();
-          var payload = {accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,syncTime:now};
-          var content = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-          var body = {message:"sync "+new Date().toISOString(), content:content};
-          if (sha) body.sha = sha;
-          return fetch(GH_API, {method:"PUT", headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"}, body:JSON.stringify(body)})
-            .then(function(r) {
-              if (!r||!r.ok) throw new Error("上传失败 HTTP "+(r?r.status:"?"));
-              localStorage.setItem("cb_sync_time", String(now));
-              return "uploaded";
-            });
-        } else if (shouldDownload) {
-          if (remotePayload.accts) setAccts(remotePayload.accts);
-          if (remotePayload.txns)  setTxns(remotePayload.txns);
-          if (remotePayload.rates) setRates(remotePayload.rates);
-          if (remotePayload.base)  setBase(remotePayload.base);
-          if (remotePayload.vis !== undefined) setVis(remotePayload.vis);
-          if (remotePayload.acctOrder) setAcctOrder(remotePayload.acctOrder);
-          localStorage.setItem("cb_sync_time", String(remoteTime));
-          return "downloaded";
+        if (!remotePayload || (localHasData && localTime >= remoteTime)) {
+          // 本地更新或云端数据损坏 → 上传，必须带正确sha
+          return doUpload(sha);
+        } else if (!localHasData || remoteTime > localTime) {
+          // 云端更新或本地无数据 → 下载
+          return doDownload(remotePayload, remoteTime);
         } else {
           return "same";
         }
       })
       .then(function(result) {
         var now = new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
-        setLastGhSync(now); localStorage.setItem("cb_last_gh_sync",now); setGhSt("ok");
-        if (result==="uploaded") alert("✓ 已上传到云端");
-        else if (result==="downloaded") alert("✓ 已从云端下载");
-        else alert("✓ 数据已是最新");
+        setLastGhSync(now); localStorage.setItem("cb_last_gh_sync", now); setGhSt("ok");
+        if (result==="uploaded") alert("✓ 已上传到云端（本地数据较新）");
+        else if (result==="downloaded") alert("✓ 已从云端下载（云端数据较新）");
+        else alert("✓ 数据已是最新，无需同步");
       })
-      .catch(function(e){ alert("同步失败: "+(e.message||e)); setGhSt("err"); });
-    setTimeout(function(){ setGhSt(""); }, 5000);
+      .catch(function(e) { alert("同步失败: "+(e.message||String(e))); setGhSt("err"); });
+
+    setTimeout(function(){ setGhSt(""); }, 8000);
   }
   function exportJSON() {
     var b = new Blob([JSON.stringify({accts:accts,txns:txns,rates:rates},null,2)],{type:"application/json"});
