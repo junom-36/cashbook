@@ -88,7 +88,16 @@ function Donut(p){
   var slices=data.map(function(d,i){var pct=total>0?d.value/total:0,offset=-(circ*cum-circ/4),dash=circ*pct-1;cum+=pct;return h("circle",{key:i,cx:cx,cy:cy,r:r,fill:"none",stroke:d.color||CLR[i%10],strokeWidth:14,strokeDasharray:Math.max(0,dash)+" "+circ,strokeDashoffset:offset});});
   return h("div",{style:{display:"flex",alignItems:"center",gap:14,padding:"4px 0"}},
     h("svg",{width:110,height:110,style:{flexShrink:0}},h("circle",{cx:cx,cy:cy,r:r,fill:"none",stroke:"var(--bg3)",strokeWidth:14}),slices),
-    h("div",{style:{flex:1,minWidth:0}},data.slice(0,6).map(function(d,i){return h("div",{key:i,style:{display:"flex",alignItems:"center",gap:5,marginBottom:3}},h("div",{style:{width:7,height:7,borderRadius:2,background:d.color||CLR[i%10],flexShrink:0}}),h("span",{style:{fontSize:11,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},d.name),h("span",{style:{fontSize:11,color:"var(--text2)",flexShrink:0}},total>0?(d.value/total*100).toFixed(0)+"%":""));}))
+    h("div",{style:{flex:1,minWidth:0}},data.slice(0,6).map(function(d,i){
+      var pct=total>0?(d.value/total*100).toFixed(0)+"%":"";
+      var amt="S$"+Math.round(d.value).toLocaleString("en-SG");
+      return h("div",{key:i,style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
+        h("div",{style:{width:7,height:7,borderRadius:2,background:d.color||CLR[i%10],flexShrink:0}}),
+        h("span",{style:{fontSize:11,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},d.name),
+        h("span",{style:{fontSize:11,color:"var(--text)",fontWeight:500,flexShrink:0}},amt),
+        h("span",{style:{fontSize:10,color:"var(--text2)",flexShrink:0,minWidth:28,textAlign:"right"}},pct)
+      );
+    }))
   );
 }
 function BarChart(p){
@@ -123,7 +132,7 @@ function App(){
   var s13=_(new Date().getFullYear());var aYr=s13[0],setAYr=s13[1];
   var s14=_(new Date().getFullYear()+"-01-01");var aFrom=s14[0],setAFrom=s14[1];
   var s15=_(new Date().getFullYear()+"-12-31");var aTo=s15[0],setATo=s15[1];
-  var s16=_(new Set());var expCats=s16[0],setExpCats=s16[1];
+  var s16=_(function(){var s=new Set();CATS.forEach(function(c){s.add(c.id);});return s;});var expCats=s16[0],setExpCats=s16[1];
   var IF0={type:"all",dateFrom:"",dateTo:"",catId:"",acctId:"",keyword:"",projectId:""};
   var s17=_(IF0);var flt=s17[0],setFlt=s17[1];
   var s18=_(false);var showFlt=s18[0],setShowFlt=s18[1];
@@ -860,12 +869,35 @@ function App(){
           h("button",{onClick:function(){
             var el=document.getElementById("analytics-content");
             if(!el||!window.html2canvas){alert("截图功能加载中，请稍候");return;}
-            html2canvas(el,{backgroundColor:null,scale:2,useCORS:true}).then(function(canvas){
-              var a=document.createElement("a");
-              a.download="cashbook_"+aRange.label+"_"+aTab+".png";
-              a.href=canvas.toDataURL("image/png");
-              a.click();
-            }).catch(function(e){alert("截图失败: "+e.message);});
+            // 临时取消滚动限制，让内容完整展开
+            var oldOverflow=el.style.overflow;
+            var oldHeight=el.style.height;
+            var oldMaxH=el.style.maxHeight;
+            el.style.overflow="visible";
+            el.style.height="auto";
+            el.style.maxHeight="none";
+            setTimeout(function(){
+              html2canvas(el,{
+                backgroundColor:getComputedStyle(document.documentElement).getPropertyValue("--bg2")||"#f5f5f7",
+                scale:2,
+                useCORS:true,
+                scrollY:0,
+                windowHeight:el.scrollHeight+100
+              }).then(function(canvas){
+                el.style.overflow=oldOverflow;
+                el.style.height=oldHeight;
+                el.style.maxHeight=oldMaxH;
+                var a=document.createElement("a");
+                a.download="cashbook_"+aRange.label+"_"+aTab+".png";
+                a.href=canvas.toDataURL("image/png");
+                a.click();
+              }).catch(function(e){
+                el.style.overflow=oldOverflow;
+                el.style.height=oldHeight;
+                el.style.maxHeight=oldMaxH;
+                alert("截图失败: "+e.message);
+              });
+            },100);
           },style:{padding:"5px 12px",borderRadius:20,fontSize:12,border:"0.5px solid var(--bd)",background:"var(--bg)",color:"var(--text2)",cursor:"pointer"}},"📷 截图下载")
         )
       ),
