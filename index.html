@@ -150,6 +150,7 @@ function App(){
   var s40=_({type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:"",toAcctId:"",catId:"food",sub:"",note:"",projectId:""});var form=s40[0],setForm=s40[1];
   var s41=_([]);var projects=s41[0],setProjects=s41[1];
   var s42=_("");var newProjName=s42[0],setNewProjName=s42[1];
+  var s43=_(false);var showAllProj=s43[0],setShowAllProj=s43[1];
 
   function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:"food",sub:"",note:"",projectId:""};}
   function nav(p){setPrev(page);setPage(p);}
@@ -239,12 +240,13 @@ function App(){
       try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
       return Promise.resolve("downloaded");
     }
-    fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}}).then(function(r){if(r.status===404)return{notFound:true};if(!r.ok)return r.text().then(function(t){throw new Error("读取失败 HTTP "+r.status+": "+t.slice(0,100));});return r.json();}).then(function(d){
+    fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}}).then(function(r){if(r.status===404)return{notFound:true};if(!r.ok)return r.text().then(function(t){throw new Error("读取失败 HTTP "+r.status+": "+t.slice(0,200));});return r.json();}).then(function(d){
       if(d.notFound)return doUpload(null);
       var rp=null,sha=d.sha||null;
-      if(d.content){try{rp=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));}catch(e){}}
+      if(d.content){try{rp=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));}catch(e){throw new Error("解析失败: "+e.message);}}
       var rt=(rp&&rp.syncTime)?rp.syncTime:0;
       var localHasData=accts.length>0||txns.length>0;
+      alert("调试: 本地数据="+(localHasData?"有":"无")+" 云端时间="+rt+" 本地时间="+localTime+" 账户数="+(rp?rp.accts.length:"无"));
       if(!localHasData&&rp)return doDownload(rp,rt);
       if(localHasData&&!rp)return doUpload(sha);
       if(localHasData&&rp){if(rt>localTime)return doDownload(rp,rt);return doUpload(sha);}
@@ -383,7 +385,10 @@ function App(){
   var NAV=[{id:"home",e:"🏠",l:"首页"},{id:"txns",e:"📋",l:"明细"},{id:"accounts",e:"💳",l:"账户"},{id:"analytics",e:"📊",l:"分析"},{id:"settings",e:"⚙️",l:"设置"}];
   var BBr=h("div",{style:{flexShrink:0,background:"var(--bg)",borderTop:"1px solid var(--bd)"}},
     page==="home"&&h("div",{style:{padding:"8px 14px 6px",background:"var(--bg2)",borderBottom:"0.5px solid var(--bd)"}},h(Btn,{style:{width:"100%"},onClick:function(){setForm(mkForm());nav("addTxn");}},"+ 记一笔")),
-    h("div",{style:{display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}},NAV.map(function(item){return h("button",{key:item.id,onClick:function(){setPage(item.id);if(item.id==="txns")setLim(80);},style:{flex:1,padding:"10px 0 8px",border:"none",background:"none",cursor:"pointer",color:page===item.id?PP:"var(--text2)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("span",{style:{fontSize:16}},item.e),h("span",{style:{fontSize:10,fontWeight:page===item.id?500:400}},item.l));}))
+    h("div",{style:{display:"flex",paddingBottom:"env(safe-area-inset-bottom,0px)"}},NAV.map(function(item){return h("button",{key:item.id,onClick:function(){
+      setPage(item.id);
+      if(item.id==="txns"){setLim(80);setFlt(IF0);setShowFlt(false);}
+    },style:{flex:1,padding:"10px 0 8px",border:"none",background:"none",cursor:"pointer",color:page===item.id?PP:"var(--text2)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("span",{style:{fontSize:16}},item.e),h("span",{style:{fontSize:10,fontWeight:page===item.id?500:400}},item.l));}))
   );
 
   // ── IMPORT ────────────────────────────────────────────────────
@@ -720,7 +725,7 @@ function App(){
       h("div",{style:CARD},
         h("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"项目管理"),
         projects.length===0&&h("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:10}},"暂无项目"),
-        projects.map(function(p){
+        (showAllProj?projects:projects.slice(0,3)).map(function(p){
           return h("div",{key:p.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"0.5px solid var(--bd)"}},
             h("div",{style:{width:10,height:10,borderRadius:2,background:p.color,flexShrink:0}}),
             h("span",{style:{flex:1,fontSize:13}},p.name),
@@ -728,6 +733,7 @@ function App(){
             h("button",{onClick:function(){if(!confirm("删除项目「"+p.name+"」？（流水不会删除）"))return;setProjects(function(ps){return ps.filter(function(x){return x.id!==p.id;});});setTxns(function(ts){return ts.map(function(t){return t.projectId===p.id?Object.assign({},t,{projectId:""}):t;});});},style:{padding:"3px 8px",borderRadius:6,fontSize:11,border:"0.5px solid "+RR,background:"none",cursor:"pointer",color:RR}},"删除")
           );
         }),
+        projects.length>3&&h("button",{onClick:function(){setShowAllProj(function(v){return!v;});},style:{width:"100%",marginTop:6,padding:"6px",border:"none",background:"none",color:PP,fontSize:12,cursor:"pointer"}},showAllProj?"▲ 收起":"▼ 展开全部 ("+projects.length+"个)"),
         h("div",{style:{display:"flex",gap:8,marginTop:10}},
           h("input",{type:"text",value:newProjName,style:Object.assign({},SM,{flex:1}),placeholder:"新建项目名称…",onChange:function(e){setNewProjName(e.target.value);}}),
           h("button",{onClick:function(){if(!newProjName.trim())return;setProjects(function(p){return p.concat([{id:gid(),name:newProjName.trim(),color:CLR[p.length%10]}]);});setNewProjName("");},style:{padding:"6px 12px",border:"none",borderRadius:8,background:PP,color:"white",fontSize:12,cursor:"pointer"}},"添加")
