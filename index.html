@@ -240,18 +240,58 @@ function App(){
       try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
       return Promise.resolve("downloaded");
     }
-    fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}}).then(function(r){if(r.status===404)return{notFound:true};if(!r.ok)return r.text().then(function(t){throw new Error("读取失败 HTTP "+r.status+": "+t.slice(0,200));});return r.json();}).then(function(d){
-      if(d.notFound)return doUpload(null);
-      var rp=null,sha=d.sha||null;
-      if(d.content){try{rp=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));}catch(e){throw new Error("解析失败: "+e.message);}}
-      var rt=(rp&&rp.syncTime)?rp.syncTime:0;
-      var localHasData=accts.length>0||txns.length>0;
-      alert("调试: 本地数据="+(localHasData?"有":"无")+" 云端时间="+rt+" 本地时间="+localTime+" 账户数="+(rp?rp.accts.length:"无"));
-      if(!localHasData&&rp)return doDownload(rp,rt);
-      if(localHasData&&!rp)return doUpload(sha);
-      if(localHasData&&rp){if(rt>localTime)return doDownload(rp,rt);return doUpload(sha);}
-      return"same";
-    }).then(function(result){
+    function doDownload(rp,rt){
+      if(rp.accts)setAccts(rp.accts);
+      if(rp.txns)setTxns(rp.txns);
+      if(rp.rates)setRates(rp.rates);
+      if(rp.base)setBase(rp.base);
+      if(rp.vis!==undefined)setVis(rp.vis);
+      if(rp.acctOrder)setAcctOrder(rp.acctOrder);
+      if(rp.projects)setProjects(rp.projects);
+      localStorage.setItem("cb_sync_time",String(rt));
+      try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
+      return Promise.resolve("downloaded");
+    }
+    // 先获取文件信息（含sha和blob_sha），再用blob API下载大文件
+    fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
+      .then(function(r){
+        if(r.status===404)return{notFound:true};
+        if(!r.ok)return r.text().then(function(t){throw new Error("读取失败 HTTP "+r.status+": "+t.slice(0,200));});
+        return r.json();
+      })
+      .then(function(d){
+        if(d.notFound)return doUpload(null);
+        var sha=d.sha||null;
+        // 如果content存在（小文件），直接用
+        if(d.content){
+          var rp=null;
+          try{rp=JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,"")))));}catch(e){throw new Error("解析失败: "+e.message);}
+          var rt=(rp&&rp.syncTime)?rp.syncTime:0;
+          var localHasData=accts.length>0||txns.length>0;
+          if(!localHasData&&rp)return doDownload(rp,rt);
+          if(localHasData&&!rp)return doUpload(sha);
+          if(localHasData&&rp){if(rt>localTime)return doDownload(rp,rt);return doUpload(sha);}
+          return"same";
+        }
+        // 大文件：用blob API下载原始内容
+        var blobSha=d.sha;
+        var blobUrl="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/git/blobs/"+blobSha;
+        return fetch(blobUrl,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
+          .then(function(r2){
+            if(!r2.ok)throw new Error("Blob下载失败 HTTP "+r2.status);
+            return r2.json();
+          })
+          .then(function(blob){
+            var rp=null;
+            try{rp=JSON.parse(decodeURIComponent(escape(atob(blob.content.replace(/\n/g,"")))));}catch(e){throw new Error("Blob解析失败: "+e.message);}
+            var rt=(rp&&rp.syncTime)?rp.syncTime:0;
+            var localHasData=accts.length>0||txns.length>0;
+            if(!localHasData&&rp)return doDownload(rp,rt);
+            if(localHasData&&!rp)return doUpload(sha);
+            if(localHasData&&rp){if(rt>localTime)return doDownload(rp,rt);return doUpload(sha);}
+            return"same";
+          });
+      })
       var now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
       setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);setGhSt("ok");
       if(result==="uploaded")alert("✓ 已上传到云端");
