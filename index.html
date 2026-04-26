@@ -411,16 +411,46 @@ function App(){
             h("div",{style:{display:"flex",gap:8}},[["仅SGD","sgd"],["全选","all"],["清空","none"]].map(function(x){return h("button",{key:x[1],style:{flex:1,padding:"7px 4px",border:"0.5px solid var(--bd)",borderRadius:8,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text)"},onClick:function(){setImpMap(function(p){var n=Object.assign({},p);Object.keys(n).forEach(function(k){n[k]=Object.assign({},n[k],{selected:x[1]==="all"?true:x[1]==="none"?false:n[k].currency==="SGD"});});return n;});}},x[0]);}))
           ),
           [["fund","资金账户"],["cash","现金"],["virtual","虚拟账户"],["liability","信用卡/负债"],["investment","投资账户"],["receivable","债权账户"]].map(function(te){
-            var typ=te[0],label=te[1],group=Object.values(impMap).filter(function(a){return a.type===typ;});
+            var typ=te[0],label=te[1];
+            var group=Object.values(impMap).filter(function(a){return a.type===typ;});
             if(!group.length)return null;
             var selCount=group.filter(function(a){return a.selected;}).length;
             return h("div",{key:typ,style:CARD},
-              h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},h("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),h("span",{style:{fontSize:11,color:"var(--text2)"}},selCount+"/"+group.length+" 已选")),
-              group.map(function(a){return h("div",{key:a.name,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"0.5px solid var(--bd)"}},
-                h("input",{type:"checkbox",checked:a.selected,style:{width:16,height:16,accentColor:PP,flexShrink:0},onChange:function(e){setImpMap(function(p){return Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{selected:e.target.checked})});}}),
-                h("div",{style:{flex:1,minWidth:0}},h("div",{style:{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},a.name),h("div",{style:{fontSize:11,color:"var(--text2)"}},a.currency+" · "+a.count+"条")),
-                h("select",{value:a.type,style:Object.assign({},SM,{width:"auto",flexShrink:0}),onChange:function(e){setImpMap(function(p){return Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{type:e.target.value})});});}},Object.entries(ALAB).map(function(e){return h("option",{key:e[0],value:e[0]},e[1]);}))
-              );})
+              h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
+                h("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),
+                h("span",{style:{fontSize:11,color:"var(--text2)"}},selCount+"/"+group.length+" 已选")
+              ),
+              group.map(function(a){
+                return h("div",{key:a.name,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"0.5px solid var(--bd)"}},
+                  h("input",{
+                    type:"checkbox",
+                    checked:a.selected,
+                    style:{width:16,height:16,accentColor:PP,flexShrink:0},
+                    onChange:function(e){
+                      var checked=e.target.checked;
+                      setImpMap(function(p){
+                        return Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{selected:checked})});
+                      });
+                    }
+                  }),
+                  h("div",{style:{flex:1,minWidth:0}},
+                    h("div",{style:{fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},a.name),
+                    h("div",{style:{fontSize:11,color:"var(--text2)"}},a.currency+" · "+a.count+"条")
+                  ),
+                  h("select",{
+                    value:a.type,
+                    style:Object.assign({},SM,{width:"auto",flexShrink:0}),
+                    onChange:function(e){
+                      var val=e.target.value;
+                      setImpMap(function(p){
+                        return Object.assign({},p,{[a.name]:Object.assign({},p[a.name],{type:val})});
+                      });
+                    }
+                  },
+                    Object.entries(ALAB).map(function(e){return h("option",{key:e[0],value:e[0]},e[1]);})
+                  )
+                );
+              })
             );
           })
         ),
