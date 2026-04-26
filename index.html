@@ -6,6 +6,7 @@
 <title>Cashbook</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
@@ -542,9 +543,13 @@ function App(){
         h("div",{style:CARD},
           h(Lbl,null,"类型"),
           h("div",{style:{display:"flex",gap:8,marginBottom:14}},[["expense","支出",RR],["income","收入",GG],["transfer","转账",PP]].map(function(x){return h("button",{key:x[0],onClick:function(){upd(setForm,{type:x[0]});},style:{flex:1,padding:"9px 4px",border:"1.5px solid "+(form.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,background:form.type===x[0]?x[2]+"18":"var(--bg2)",color:form.type===x[0]?x[2]:"var(--text2)"}},x[1]);})),
-          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
-            h("div",null,h(Lbl,null,"时间"),h("input",{type:"datetime-local",value:form.datetime,style:IPT,onChange:function(e){upd(setForm,{datetime:e.target.value});}})),
-            h("div",null,h(Lbl,null,"金额"),h("input",{type:"number",value:form.amount,style:IPT,placeholder:"0.00",step:"0.01",onChange:function(e){upd(setForm,{amount:e.target.value});}}))
+          h("div",{style:{marginBottom:12}},
+            h(Lbl,null,"时间"),
+            h("input",{type:"datetime-local",value:form.datetime,style:IPT,onChange:function(e){upd(setForm,{datetime:e.target.value});}})
+          ),
+          h("div",{style:{marginBottom:12}},
+            h(Lbl,null,"金额"),
+            h("input",{type:"number",value:form.amount,style:IPT,placeholder:"0.00",step:"0.01",onChange:function(e){upd(setForm,{amount:e.target.value});}})
           ),
           h("div",{style:{marginBottom:12}},
             h(Lbl,null,form.type==="transfer"?"转出账户":"账户"),
@@ -683,7 +688,32 @@ function App(){
               menuId===a.id&&h("div",{style:{display:"flex",gap:6,padding:"8px 0",flexWrap:"wrap"}},
                 h("button",{onClick:function(){setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);},style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"编辑"),
                 h("button",{onClick:function(){setAdjId(a.id);setAdjVal((bals[a.id]||0).toFixed(2));setMenuId(null);},style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"调整余额"),
-                h("button",{onClick:function(){if(txns.filter(function(t){return t.acctId===a.id||t.toAcctId===a.id;}).length){alert("有关联流水，无法删除");return;}setAccts(function(p){return p.filter(function(x){return x.id!==a.id;});});},style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid "+RR,background:"none",color:RR,cursor:"pointer"}},"删除")
+                h("button",{onClick:function(){
+                  setAcctOrder(function(prev){
+                    var base=prev.length?prev:accts.map(function(x){return x.id;});
+                    var idx=base.indexOf(a.id);
+                    if(idx<=0)return prev;
+                    var next=base.slice();
+                    var tmp=next[idx];next[idx]=next[idx-1];next[idx-1]=tmp;
+                    return next;
+                  });
+                  setMenuId(null);
+                },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"↑ 上移"),
+                h("button",{onClick:function(){
+                  setAcctOrder(function(prev){
+                    var base=prev.length?prev:accts.map(function(x){return x.id;});
+                    var idx=base.indexOf(a.id);
+                    if(idx<0||idx>=base.length-1)return prev;
+                    var next=base.slice();
+                    var tmp=next[idx];next[idx]=next[idx+1];next[idx+1]=tmp;
+                    return next;
+                  });
+                  setMenuId(null);
+                },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"↓ 下移"),
+                h("button",{onClick:function(){
+                  setAccts(function(p){return p.map(function(x){return x.id===a.id?Object.assign({},x,{hidden:!a.hidden}):x;});});
+                  setMenuId(null);
+                },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},a.hidden?"显示":"隐藏"),
               ),
               editAId===a.id&&h("div",{style:{marginTop:8,padding:10,background:"var(--bg2)",borderRadius:8}},
                 h("div",{style:{marginBottom:8}},h(Lbl,null,"账户名称"),h("input",{type:"text",value:editAF.name,style:SM,onChange:function(e){upd(setEditAF,{name:e.target.value});}})),
@@ -824,9 +854,22 @@ function App(){
           h("button",{onClick:aNext,style:{border:"none",background:"none",fontSize:22,cursor:"pointer",padding:"0 10px",color:"var(--text)"}},"›")
         ),
         aMode==="custom"&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},h("div",null,h(Lbl,null,"开始"),h("input",{type:"date",value:aFrom,style:SM,onChange:function(e){setAFrom(e.target.value);}})),h("div",null,h(Lbl,null,"结束"),h("input",{type:"date",value:aTo,style:SM,onChange:function(e){setATo(e.target.value);}}))),
-        h("div",{style:{display:"flex",gap:6,paddingBottom:10,overflowX:"auto"}},[["cat","分类支出"],["trend","收支趋势"],["income","收入构成"],["project","项目汇总"]].map(function(x){return h("button",{key:x[0],onClick:function(){setATab(x[0]);},style:{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:500,border:"0.5px solid "+(aTab===x[0]?PP:"var(--bd)"),background:aTab===x[0]?PP:"var(--bg)",color:aTab===x[0]?"white":"var(--text)",cursor:"pointer",flexShrink:0}},x[1]);}))
+        h("div",{style:{display:"flex",gap:6,paddingBottom:10,overflowX:"auto"}},
+          [["cat","分类支出"],["trend","收支趋势"],["income","收入构成"],["project","项目汇总"]].map(function(x){return h("button",{key:x[0],onClick:function(){setATab(x[0]);},style:{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:500,border:"0.5px solid "+(aTab===x[0]?PP:"var(--bd)"),background:aTab===x[0]?PP:"var(--bg)",color:aTab===x[0]?"white":"var(--text)",cursor:"pointer",flexShrink:0}},x[1]);})),
+        h("div",{style:{paddingBottom:8,paddingRight:2,textAlign:"right"}},
+          h("button",{onClick:function(){
+            var el=document.getElementById("analytics-content");
+            if(!el||!window.html2canvas){alert("截图功能加载中，请稍候");return;}
+            html2canvas(el,{backgroundColor:null,scale:2,useCORS:true}).then(function(canvas){
+              var a=document.createElement("a");
+              a.download="cashbook_"+aRange.label+"_"+aTab+".png";
+              a.href=canvas.toDataURL("image/png");
+              a.click();
+            }).catch(function(e){alert("截图失败: "+e.message);});
+          },style:{padding:"5px 12px",borderRadius:20,fontSize:12,border:"0.5px solid var(--bd)",background:"var(--bg)",color:"var(--text2)",cursor:"pointer"}},"📷 截图下载")
+        )
       ),
-      h("div",{style:{flex:1,overflowY:"auto",padding:"0 14px"}},
+      h("div",{id:"analytics-content",style:{flex:1,overflowY:"auto",padding:"0 14px"}},
         page==="home"&&renderHome(),
         page==="txns"&&renderTxns(),
         page==="accounts"&&renderAccounts(),
