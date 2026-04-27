@@ -50,7 +50,7 @@ var ICATS=[
   {id:"other_in",name:"其他收入",sub:["各种退款","抢红包","账户利息"]}
 ];
 var CAT_MAP={"食品酒水":"food","行车交通":"transport","服饰美容":"shopping","房租水电":"housing","日常家居":"daily","休闲娱乐":"entertainment","学习进修":"education","医疗保健":"health","人情往来":"social","金融保险":"finance","其他杂项":"other","代付转账":"other","特殊转账":"other","职业收入":"other","理财收入":"other","其他收入":"other"};
-var ALAB={cash:"现金",fund:"资金账户",virtual:"虚拟账户",liability:"信用卡/负债",receivable:"债权账户",investment:"投资账户"};
+var ALAB={cash:"现金",fund:"资金账户",virtual:"虚拟账户",liability:"信用卡/负债",investment:"投资账户",receivable:"债权账户"};
 var IPT={padding:"10px 12px",border:"0.5px solid var(--bd2)",borderRadius:8,fontSize:14,outline:"none",background:"var(--bg)",color:"var(--text)",width:"100%",boxSizing:"border-box"};
 var SM={padding:"6px 8px",border:"0.5px solid var(--bd2)",borderRadius:8,fontSize:12,outline:"none",background:"var(--bg)",color:"var(--text)",width:"100%",boxSizing:"border-box"};
 var CARD={background:"var(--bg)",border:"0.5px solid var(--bd)",borderRadius:12,padding:"14px 16px",marginBottom:10};
@@ -161,7 +161,7 @@ function App(){
   var s41=_([]);var projects=s41[0],setProjects=s41[1];
   var s42=_("");var newProjName=s42[0],setNewProjName=s42[1];
   var s43=_(false);var showAllProj=s43[0],setShowAllProj=s43[1];
-
+  var s44=_({});var showHiddenTypes=s44[0],setShowHiddenTypes=s44[1];
   function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:"food",sub:"",note:"",projectId:""};}
   function nav(p){setPrev(page);setPage(p);}
   function upd(setter,patch){setter(function(p){return Object.assign({},p,patch);});}
@@ -683,12 +683,13 @@ function App(){
 var list=sortedAccts.filter(function(a){return a.type===typ;});
 if(!list.length)return null;
 var visibleList=list.filter(function(a){return !a.hidden;});
-var hiddenList=list.filter(function(a){return a.hidden;});
-var gT=visibleList.reduce(function(s,a){return s+toBase(bals[a.id]||0,a.currency,base,rates,mo);},0);
+        var hiddenList=list.filter(function(a){return a.hidden;});
+        var gT=visibleList.reduce(function(s,a){return s+toBase(bals[a.id]||0,a.currency,base,rates,mo);},0);
+        var showHid=!!showHiddenTypes[typ];
         return h("div",{key:typ,style:CARD},
           h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},h("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),h("span",{style:{fontSize:13,fontWeight:500,color:gT<0?RR:"var(--text)"}},h(Num,{v:(gT<0?"-":"")+fmtB(Math.abs(gT),base),vis:vis}))),
-          visibleList.concat(hiddenList).map(function(a,i){
-            var isHidden=!!a.hidden;
+          visibleList.map(function(a,i){
+            var isHidden=false;
             var bal=bals[a.id]||0;
             return h("div",{key:a.id,style:{padding:"9px 0",borderBottom:"0.5px solid var(--bd)"}},
               h("div",{style:{display:"flex",alignItems:"center",gap:6}},
@@ -745,6 +746,23 @@ var gT=visibleList.reduce(function(s,a){return s+toBase(bals[a.id]||0,a.currency
               )
             );
           })
+        hiddenList.length>0&&h("div",null,
+            h("button",{onClick:function(){setShowHiddenTypes(function(p){var n=Object.assign({},p);n[typ]=!n[typ];return n;});},style:{width:"100%",padding:"6px",border:"none",background:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",marginTop:4}},
+              showHid?"▲ 收起已隐藏":"▼ 展示已隐藏账户 ("+hiddenList.length+")"),
+            showHid&&hiddenList.map(function(a,i){
+              var bal=bals[a.id]||0;
+              return h("div",{key:a.id,style:{padding:"9px 0",borderBottom:"0.5px solid var(--bd)",opacity:0.5}},
+                h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                  h("div",{style:{width:8,height:8,borderRadius:"50%",background:"var(--bg3)",flexShrink:0}}),
+                  h("div",{style:{flex:1,minWidth:0}},
+                    h("div",{style:{fontSize:13,color:"var(--text2)"}},a.name+" (已隐藏)"),
+                    h("div",{style:{fontSize:11,color:"var(--text2)"}},(ALAB[a.type]||a.type)+" · "+a.currency)
+                  ),
+                  h("button",{onClick:function(){setAccts(function(p){return p.map(function(x){return x.id===a.id?Object.assign({},x,{hidden:false}):x;});});},style:{padding:"3px 8px",borderRadius:6,fontSize:11,border:"0.5px solid var(--bd)",background:"none",cursor:"pointer",color:PP}},"显示")
+                )
+              );
+            })
+          )
         );
       }),
       h(Btn,{style:{width:"100%"},onClick:function(){nav("addAcct");}},"+ 添加账户")
