@@ -684,7 +684,8 @@ function App(){
         var gT=list.reduce(function(s,a){return s+toBase(bals[a.id]||0,a.currency,base,rates,mo);},0);
         return h("div",{key:typ,style:CARD},
           h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},h("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),h("span",{style:{fontSize:13,fontWeight:500,color:gT<0?RR:"var(--text)"}},h(Num,{v:(gT<0?"-":"")+fmtB(Math.abs(gT),base),vis:vis}))),
-          list.map(function(a,i){
+          visibleList.concat(hiddenList).map(function(a,i){
+            var isHidden=!!a.hidden;
             var bal=bals[a.id]||0;
             return h("div",{key:a.id,style:{padding:"9px 0",borderBottom:"0.5px solid var(--bd)"}},
               h("div",{style:{display:"flex",alignItems:"center",gap:6}},
