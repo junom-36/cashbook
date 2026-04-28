@@ -776,7 +776,7 @@ function App(){
         ),
         h("div",{style:CARD},
           h("div",{style:{fontSize:13,fontWeight:500,marginBottom:8}},"最近交易"),
-          txns.filter(function(t){return t.type!=="adjust";}).slice(0,5).map(function(t){return h(TRow,{key:t.id,t:t});}),
+          txns.filter(function(t){return t.type!=="adjust";}).slice().sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,5).map(function(t){return h(TRow,{key:t.id,t:t});}),
           !txns.length&&h("div",{style:{textAlign:"center",color:"var(--text2)",padding:"16px 0",fontSize:13}},"暂无记录，点击下方「+ 记一笔」开始"),
           h("button",{onClick:function(){setPage("txns");},style:{width:"100%",marginTop:8,padding:"7px",border:"none",background:"var(--bg2)",borderRadius:8,color:PP,fontSize:12,cursor:"pointer",fontWeight:500}},"查看全部明细 →")
         )
