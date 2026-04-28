@@ -220,7 +220,7 @@ function App(){
   var catBD=useMemo(function(){var m={};aTxns.filter(function(t){return t.type==="expense";}).forEach(function(t){var c=findCat(t.catId),k=c?c.id:"other";if(!m[k])m[k]={id:k,name:c?c.name:"其他",color:c?c.color:"#8a8a8a",value:0,subs:{}};var v=toSGD(t.amount,t.currency,rates,t.date.slice(0,7));m[k].value+=v;m[k].subs[t.sub||"其他"]=(m[k].subs[t.sub||"其他"]||0)+v;});return Object.values(m).map(function(x){var sa=Object.entries(x.subs).map(function(e){return{name:e[0],value:+e[1].toFixed(2)};}).sort(function(a,b){return b.value-a.value;});return Object.assign({},x,{value:+x.value.toFixed(2),subArr:sa});}).sort(function(a,b){return b.value-a.value;});},[aTxns,rates]);
   var homeCBD=useMemo(function(){var m={};moTxns.filter(function(t){return t.type==="expense";}).forEach(function(t){var c=findCat(t.catId),k=c?c.id:"other";if(!m[k])m[k]={name:c?c.name:"其他",color:c?c.color:"#8a8a8a",value:0};m[k].value+=toSGD(t.amount,t.currency,rates,mo);});return Object.values(m).map(function(x){return Object.assign({},x,{value:+x.value.toFixed(2)});}).sort(function(a,b){return b.value-a.value;});},[moTxns,rates,mo]);
   var trendData=useMemo(function(){var months=[],c=new Date(aRange.from.slice(0,7)+"-01"),end=new Date(aRange.to.slice(0,7)+"-01");while(c<=end){months.push(c.getFullYear()+"-"+String(c.getMonth()+1).padStart(2,"0"));c=new Date(c.getFullYear(),c.getMonth()+1,1);}return months.map(function(mm){return{month:aMode==="year"?parseInt(mm.slice(5))+"月":mm.slice(5),income:+txns.filter(function(t){return t.date.indexOf(mm)===0&&t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,mm);},0).toFixed(2),expense:+txns.filter(function(t){return t.date.indexOf(mm)===0&&t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,mm);},0).toFixed(2)};});},[txns,rates,aRange,aMode]);
-  var fltTxns=useMemo(function(){return txns.filter(function(t){if(flt.type!=="all"&&t.type!==flt.type)return false;if(t.type==="adjust"&&flt.type!=="adjust"&&!flt.acctId)return false;if(flt.dateFrom&&t.date<flt.dateFrom)return false;if(flt.dateTo&&t.date>flt.dateTo)return false;if(flt.catId&&t.catId!==flt.catId)return false;if(flt.acctId&&t.acctId!==flt.acctId&&t.toAcctId!==flt.acctId)return false;if(flt.projectId&&t.projectId!==flt.projectId)return false;if(flt.keyword){var kw=flt.keyword.toLowerCase(),c=findCat(t.catId),a=findById(accts,t.acctId);if([t.note,t.sub,c?c.name:"",a?a.name:""].join(" ").toLowerCase().indexOf(kw)<0)return false;}return true;});},[txns,flt,accts]);
+  var fltTxns=useMemo(function(){return txns.filter(function(t){if(flt.type!=="all"&&t.type!==flt.type)return false;if(flt.dateFrom&&t.date<flt.dateFrom)return false;if(flt.dateTo&&t.date>flt.dateTo)return false;if(flt.catId&&t.catId!==flt.catId)return false;if(flt.acctId&&t.acctId!==flt.acctId&&t.toAcctId!==flt.acctId)return false;if(flt.projectId&&t.projectId!==flt.projectId)return false;if(flt.keyword){var kw=flt.keyword.toLowerCase(),c=findCat(t.catId),a=findById(accts,t.acctId);if([t.note,t.sub,c?c.name:"",a?a.name:""].join(" ").toLowerCase().indexOf(kw)<0)return false;}return true;});},[txns,flt,accts]);
   var grpTxns=useMemo(function(){var g={};fltTxns.slice(0,lim).forEach(function(t){if(!g[t.date])g[t.date]=[];g[t.date].push(t);});return Object.entries(g).sort(function(a,b){return b[0].localeCompare(a[0]);}).map(function(e){return{date:e[0],txns:e[1],inc:e[1].filter(function(t){return t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0),exp:e[1].filter(function(t){return t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0)};});},[fltTxns,lim,rates]);
   var sortedAccts=useMemo(function(){if(!acctOrder.length)return accts;var ord=acctOrder.map(function(id){return findById(accts,id);}).filter(Boolean);return ord.concat(accts.filter(function(a){return acctOrder.indexOf(a.id)<0;}));},[accts,acctOrder]);
   var projBD=useMemo(function(){return projects.map(function(proj){var pts=aTxns.filter(function(t){return t.projectId===proj.id;});var exp=pts.filter(function(t){return t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);var inc=pts.filter(function(t){return t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);return{id:proj.id,name:proj.name,color:proj.color||PP,expense:+exp.toFixed(2),income:+inc.toFixed(2),count:pts.length};}).filter(function(p){return p.count>0;}).sort(function(a,b){return b.expense-a.expense;});},[projects,aTxns,rates]);
@@ -785,7 +785,7 @@ function App(){
       ),
       showFlt&&h("div",{style:Object.assign({},CARD,{borderRadius:"0 0 12px 12px",borderTop:"none",paddingTop:10,marginBottom:0})},
         h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}},
-          [["all","全部"],["expense","支出"],["income","收入"],["transfer","转账"]].map(function(x){
+          [["all","全部"],["expense","支出"],["income","收入"],["transfer","转账"],["adjust","调整"]].map(function(x){
             return h("button",{key:x[0],onClick:function(){upd(setFlt,{type:x[0]});},style:{padding:"4px 12px",borderRadius:20,fontSize:12,border:"0.5px solid "+(flt.type===x[0]?PP:"var(--bd)"),background:flt.type===x[0]?PP:"var(--bg2)",color:flt.type===x[0]?"white":"var(--text)",cursor:"pointer"}},x[1]);
           })
         ),
@@ -819,8 +819,37 @@ function App(){
 
 // ============================================================
 // 模块 16: 渲染函数 - 账户页
+// 排序逻辑：acctOrder 存全局顺序，sortedAccts 按此排序后再按分类分组
+// 上移/下移只在同分类内操作，批量排序模式可直接拖动整个分类内列表
 // ============================================================
   function renderAccounts(){
+    // 批量排序模式 state（用 window 存避免新增 useState）
+    var sortMode=!!window._cbSortMode;
+    var sortTyp=window._cbSortTyp||"";
+
+    // 分类内上移/下移：只交换同分类内相邻账户在 acctOrder 中的位置
+    function moveAcct(a,dir){
+      setAcctOrder(function(prevOrder){
+        // 先得到当前同类可见账户的有序列表（按 sortedAccts 顺序）
+        var typeList=sortedAccts.filter(function(x){return x.type===a.type&&!x.hidden;});
+        var idx=typeList.indexOf(typeList.filter(function(x){return x.id===a.id;})[0]);
+        var targetIdx=idx+dir;
+        if(targetIdx<0||targetIdx>=typeList.length)return prevOrder;
+        var aId=typeList[idx].id;
+        var bId=typeList[targetIdx].id;
+        // 在全局 order 中交换这两个
+        var fullOrder=prevOrder.length?prevOrder.slice():accts.map(function(x){return x.id;});
+        // 确保两个 id 都在 fullOrder 里
+        if(fullOrder.indexOf(aId)<0)fullOrder.push(aId);
+        if(fullOrder.indexOf(bId)<0)fullOrder.push(bId);
+        var ia=fullOrder.indexOf(aId);
+        var ib=fullOrder.indexOf(bId);
+        var next=fullOrder.slice();
+        next[ia]=bId;next[ib]=aId;
+        return next;
+      });
+    }
+
     return h("div",{style:{paddingBottom:16,paddingTop:10}},
       Object.entries(ALAB).map(function(entry){
         var typ=entry[0],label=entry[1];
@@ -831,13 +860,22 @@ function App(){
         if(!visibleList.length&&!hiddenList.length)return null;
         var gT=visibleList.reduce(function(s,a){return s+toBase(bals[a.id]||0,a.currency,base,rates,mo);},0);
         var showHid=!!showHiddenTypes[typ];
+        var isSortingThis=sortMode&&sortTyp===typ;
 
-        // 单个账户行的渲染
+        // 单个账户行渲染
         function renderAcctRow(a,i,isHidden){
           var bal=bals[a.id]||0;
+          var typeList=visibleList; // 同分类可见列表
+          var myIdx=typeList.indexOf(typeList.filter(function(x){return x.id===a.id;})[0]);
           return h("div",{key:a.id,style:{padding:"9px 0",borderBottom:"0.5px solid var(--bd)",opacity:isHidden?0.6:1}},
             h("div",{style:{display:"flex",alignItems:"center",gap:6}},
-              h("div",{style:{width:8,height:8,borderRadius:"50%",background:isHidden?"var(--bg3)":CLR[i%10],flexShrink:0}}),
+              // 批量排序模式：显示上下箭头替代圆点
+              isSortingThis&&!isHidden
+                ? h("div",{style:{display:"flex",flexDirection:"column",gap:1,flexShrink:0}},
+                    h("button",{onClick:function(){moveAcct(a,-1);},disabled:myIdx===0,style:{border:"none",background:"none",cursor:myIdx===0?"default":"pointer",color:myIdx===0?"var(--bg3)":PP,fontSize:14,lineHeight:1,padding:"1px 2px"}},"▲"),
+                    h("button",{onClick:function(){moveAcct(a,1);},disabled:myIdx===typeList.length-1,style:{border:"none",background:"none",cursor:myIdx===typeList.length-1?"default":"pointer",color:myIdx===typeList.length-1?"var(--bg3)":PP,fontSize:14,lineHeight:1,padding:"1px 2px"}},"▼")
+                  )
+                : h("div",{style:{width:8,height:8,borderRadius:"50%",background:isHidden?"var(--bg3)":CLR[i%10],flexShrink:0}}),
               h("div",{style:{flex:1,minWidth:0}},
                 h("div",{style:{fontSize:13,color:isHidden?"var(--text2)":"var(--text)"}},a.name+(isHidden?" (已隐藏)":"")),
                 h("div",{style:{fontSize:11,color:"var(--text2)"}},(ALAB[a.type]||a.type)+" · "+a.currency)
@@ -846,27 +884,14 @@ function App(){
                 h("div",{style:{fontSize:13,fontWeight:500,color:bal<0?RR:"var(--text)"}},h(Num,{v:fmtA(bal,a.currency),vis:vis})),
                 a.currency!=="SGD"&&h("div",{style:{fontSize:10,color:"var(--text2)"}},"≈"+fmtS(toSGD(bal,a.currency,rates,mo)))
               ),
-              !isHidden&&h("button",{onClick:function(){upd(setFlt,{acctId:a.id});setPage("txns");},style:{padding:"3px 7px",borderRadius:6,fontSize:11,border:"0.5px solid var(--bd2)",background:"var(--bg2)",cursor:"pointer",color:"var(--text)",flexShrink:0}},"流水"),
-              h("button",{onClick:function(){setMenuId(menuId===a.id?null:a.id);setEditAId(null);setAdjId(null);},style:{padding:"3px 7px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd2)",background:menuId===a.id?PP+"15":"var(--bg2)",color:menuId===a.id?PP:"var(--text)",cursor:"pointer",flexShrink:0}},"···")
+              // 批量排序模式下隐藏流水和···按钮
+              !isSortingThis&&!isHidden&&h("button",{onClick:function(){upd(setFlt,{acctId:a.id});setPage("txns");},style:{padding:"3px 7px",borderRadius:6,fontSize:11,border:"0.5px solid var(--bd2)",background:"var(--bg2)",cursor:"pointer",color:"var(--text)",flexShrink:0}},"流水"),
+              !isSortingThis&&h("button",{onClick:function(){setMenuId(menuId===a.id?null:a.id);setEditAId(null);setAdjId(null);},style:{padding:"3px 7px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd2)",background:menuId===a.id?PP+"15":"var(--bg2)",color:menuId===a.id?PP:"var(--text)",cursor:"pointer",flexShrink:0}},"···")
             ),
             // 操作菜单
-            menuId===a.id&&h("div",{style:{display:"flex",gap:6,padding:"8px 0",flexWrap:"wrap"}},
+            !isSortingThis&&menuId===a.id&&h("div",{style:{display:"flex",gap:6,padding:"8px 0",flexWrap:"wrap"}},
               h("button",{onClick:function(){setEditAId(a.id);setEditAF({name:a.name,type:a.type,currency:a.currency});setMenuId(null);},style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"编辑"),
               !isHidden&&h("button",{onClick:function(){setAdjId(a.id);setAdjVal((bals[a.id]||0).toFixed(2));setMenuId(null);},style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"调整余额"),
-              !isHidden&&h("button",{onClick:function(){
-                setAcctOrder(function(prev){
-                  var base2=prev.length?prev:accts.map(function(x){return x.id;});
-                  var idx=base2.indexOf(a.id);if(idx<=0)return prev;
-                  var next=base2.slice();var tmp=next[idx];next[idx]=next[idx-1];next[idx-1]=tmp;return next;
-                });setMenuId(null);
-              },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"↑ 上移"),
-              !isHidden&&h("button",{onClick:function(){
-                setAcctOrder(function(prev){
-                  var base2=prev.length?prev:accts.map(function(x){return x.id;});
-                  var idx=base2.indexOf(a.id);if(idx<0||idx>=base2.length-1)return prev;
-                  var next=base2.slice();var tmp=next[idx];next[idx]=next[idx+1];next[idx+1]=tmp;return next;
-                });setMenuId(null);
-              },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},"↓ 下移"),
               h("button",{onClick:function(){
                 setAccts(function(p){return p.map(function(x){return x.id===a.id?Object.assign({},x,{hidden:!a.hidden}):x;});});setMenuId(null);
               },style:{padding:"5px 10px",borderRadius:6,fontSize:12,border:"0.5px solid var(--bd)",background:"none",color:"var(--text)",cursor:"pointer"}},a.hidden?"显示":"隐藏")
@@ -897,16 +922,27 @@ function App(){
           );
         }
 
-        return h("div",{key:typ,style:CARD},
+        return h("div",{key:typ,style:Object.assign({},CARD,isSortingThis?{border:"1.5px solid "+PP}:{})},
           // 分类标题行
-          h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
             h("span",{style:{fontSize:12,fontWeight:600,color:"var(--text2)"}},label),
-            h("span",{style:{fontSize:13,fontWeight:500,color:gT<0?RR:"var(--text)"}},h(Num,{v:(gT<0?"-":"")+fmtB(Math.abs(gT),base),vis:vis}))
+            h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+              h("span",{style:{fontSize:13,fontWeight:500,color:gT<0?RR:"var(--text)"}},h(Num,{v:(gT<0?"-":"")+fmtB(Math.abs(gT),base),vis:vis})),
+              // 排序按钮（仅可见账户>1时显示）
+              visibleList.length>1&&h("button",{
+                onClick:function(){
+                  if(isSortingThis){window._cbSortMode=false;window._cbSortTyp="";}
+                  else{window._cbSortMode=true;window._cbSortTyp=typ;setMenuId(null);setEditAId(null);setAdjId(null);}
+                  setAcctOrder(function(p){return p.slice();}); // 触发重渲染
+                },
+                style:{padding:"2px 8px",borderRadius:6,fontSize:11,border:"0.5px solid "+(isSortingThis?PP:"var(--bd)"),background:isSortingThis?PP:"none",color:isSortingThis?"white":"var(--text2)",cursor:"pointer"}
+              },isSortingThis?"完成排序":"排序")
+            )
           ),
           // 可见账户列表
           visibleList.map(function(a,i){return renderAcctRow(a,i,false);}),
           // 隐藏账户折叠区
-          hiddenList.length>0&&h("div",null,
+          !isSortingThis&&hiddenList.length>0&&h("div",null,
             h("button",{
               onClick:function(){setShowHiddenTypes(function(p){var n=Object.assign({},p);n[typ]=!n[typ];return n;});},
               style:{width:"100%",padding:"6px",border:"none",background:"none",color:"var(--text2)",fontSize:12,cursor:"pointer",marginTop:4}
