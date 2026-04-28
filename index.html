@@ -633,10 +633,18 @@ function App(){
 // ============================================================
 // 模块 12: 页面 - 新增记账
 // ============================================================
-  if(page==="addTxn"){
+ if(page==="addTxn"){
     function doAdd(keep){
-      var amt=parseFloat(form.amount);if(!amt||isNaN(amt))return;
-      if(form.type==="transfer"&&!form.toAcctId)return;
+      var errors=[];
+      var amt=parseFloat(form.amount);
+      if(!amt||isNaN(amt)||amt<=0)errors.push("金额");
+      if(!form.acctId)errors.push("账户");
+      if(form.type==="transfer"&&!form.toAcctId)errors.push("转入账户");
+      if(form.type!=="transfer"){
+        if(!form.catId)errors.push("分类");
+        if(!form.sub)errors.push("子分类");
+      }
+      if(errors.length){alert("请填写必填项："+errors.join("、"));return;}
       addTxn({type:form.type,date:form.datetime.slice(0,10),amount:amt,currency:selAcct?selAcct.currency:"SGD",acctId:form.acctId,toAcctId:form.toAcctId,toAmount:crossCur?parseFloat(form.toAmount)||amt:amt,catId:form.catId,sub:form.sub,note:form.note,projectId:form.projectId||""},keep);
     }
     var catSubs=form.type==="expense"?(findCat(form.catId)||{sub:[]}).sub:(findICat(form.catId)||{sub:[]}).sub;
@@ -653,10 +661,10 @@ function App(){
               return h("button",{key:x[0],onClick:function(){upd(setForm,{type:x[0]});},style:{flex:1,padding:"9px 4px",border:"1.5px solid "+(form.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,background:form.type===x[0]?x[2]+"18":"var(--bg2)",color:form.type===x[0]?x[2]:"var(--text2)"}},x[1]);
             })
           ),
-          h("div",{style:{marginBottom:12}},h(Lbl,null,"时间"),h("input",{type:"datetime-local",value:form.datetime,style:IPT,onChange:function(e){upd(setForm,{datetime:e.target.value});}})),
-          h("div",{style:{marginBottom:12}},h(Lbl,null,"金额"),h("input",{type:"number",value:form.amount,style:IPT,placeholder:"0.00",step:"0.01",onChange:function(e){upd(setForm,{amount:e.target.value});}})),
+          h("div",{style:{marginBottom:12}},h(Lbl,null,h("span",null,"时间")),h("input",{type:"datetime-local",value:form.datetime,style:IPT,onChange:function(e){upd(setForm,{datetime:e.target.value});}})),
+          h("div",{style:{marginBottom:12}},h(Lbl,null,h("span",null,"金额 ",h("span",{style:{color:RR}},"*"))),h("input",{type:"number",value:form.amount,style:Object.assign({},IPT,!form.amount?{borderColor:RR+"88"}:{}),placeholder:"0.00",step:"0.01",onChange:function(e){upd(setForm,{amount:e.target.value});}})),
           h("div",{style:{marginBottom:12}},
-            h(Lbl,null,form.type==="transfer"?"转出账户":"账户"),
+            h(Lbl,null,h("span",null,form.type==="transfer"?"转出账户":"账户"," ",h("span",{style:{color:RR}},"*"))),
             h("select",{value:form.acctId,style:IPT,onChange:function(e){upd(setForm,{acctId:e.target.value});}},
               accts.map(function(a){return h("option",{key:a.id,value:a.id},a.name+" ("+a.currency+")");})
             )
@@ -670,12 +678,15 @@ function App(){
           ),
           form.type!=="transfer"&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
             h("div",null,
-              h(Lbl,null,form.type==="income"?"来源":"分类"),
+              h(Lbl,null,h("span",null,form.type==="income"?"来源":"分类"," ",h("span",{style:{color:RR}},"*"))),
               form.type==="expense"
-                ?h("select",{value:form.catId,style:IPT,onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},CATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
+                ?h("select",{value:form.catId,style:Object.assign({},IPT,!form.catId?{borderColor:RR+"88"}:{}),onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},CATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
                 :h("select",{value:form.catId,style:IPT,onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},ICATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
             ),
-            h("div",null,h(Lbl,null,"子分类"),h("select",{value:form.sub,style:IPT,onChange:function(e){upd(setForm,{sub:e.target.value});}},h("option",{value:""},"选择"),catSubs.map(function(s){return h("option",{key:s,value:s},s);})))
+            h("div",null,
+              h(Lbl,null,h("span",null,"子分类 ",h("span",{style:{color:RR}},"*"))),
+              h("select",{value:form.sub,style:Object.assign({},IPT,!form.sub?{borderColor:RR+"88"}:{}),onChange:function(e){upd(setForm,{sub:e.target.value});}},h("option",{value:""},"请选择"),catSubs.map(function(s){return h("option",{key:s,value:s},s);}))
+            )
           ),
           h("div",{style:{marginBottom:12}},
             h(Lbl,null,"项目"),
