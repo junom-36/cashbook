@@ -250,6 +250,112 @@ function App(){
     try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects}));}catch(e){}
   },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,loaded]);
 
+  // 页面加载完成后自动从云端拉取最新数据
+  useEffect(function(){
+    if(!loaded)return;
+    var tok=(localStorage.getItem("cb_token")||"").trim();
+    if(!tok)return;
+    // 静默下载：只在云端比本地新时才覆盖，不弹 alert
+    var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
+    function tryFetch(url,headers){
+      return fetch(url,{headers:headers}).then(function(r){if(!r.ok)throw 0;return r.json();});
+    }
+    var headers={Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"};
+    tryFetch(GH_API,headers).then(function(d){
+      if(!d||!d.sha)return;
+      function parse(b64){return JSON.parse(decodeURIComponent(escape(atob(b64.replace(/\n/g,"")))));}
+      var rp=null;
+      if(d.content){try{rp=parse(d.content);}catch(e){}}
+      if(!rp){
+        // 大文件走 blob
+        return tryFetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/git/blobs/"+d.sha,headers)
+          .then(function(blob){try{rp=parse(blob.content);}catch(e){}return rp;});
+      }
+      return rp;
+    }).then(function(rp){
+      if(!rp||!rp.syncTime)return;
+      if(rp.syncTime>localTime){
+        // 云端更新，静默覆盖本地
+        if(rp.accts)setAccts(rp.accts);
+        if(rp.txns)setTxns(rp.txns);
+        if(rp.rates)setRates(rp.rates);
+        if(rp.base)setBase(rp.base);
+        if(rp.vis!==undefined)setVis(rp.vis);
+        if(rp.acctOrder)setAcctOrder(rp.acctOrder);
+        if(rp.projects)setProjects(rp.projects);
+        localStorage.setItem("cb_sync_time",String(rp.syncTime));
+        try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
+        var now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+        setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);
+        setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
+      }
+    }).catch(function(){});// 静默失败，不影响使用
+  },[loaded]);// 仅在加载完成后触发一次
+
+  // 数据变化后延迟5秒自动上传（防抖）
+  useEffect(function(){
+    if(!loaded)return;
+    var tok=(localStorage.getItem("cb_token")||"").trim();
+    if(!tok)return;
+    if(!accts.length&&!txns.length)return;// 无数据不上传
+    var timer=setTimeout(function(){
+      setGhSt("syncing");
+      var now=Date.now();
+      var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,syncTime:now};
+      var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      // 先取 sha
+      fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(d){
+          var body={message:"auto-sync "+new Date().toISOString(),content:content};
+          if(d&&d.sha)body.sha=d.sha;
+          return fetch(GH_API,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+        })
+        .then(function(r){
+          if(r&&r.ok){
+            localStorage.setItem("cb_sync_time",String(now));
+            var ts=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+            setLastGhSync(ts);localStorage.setItem("cb_last_gh_sync",ts);
+            setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
+          }else{setGhSt("");}
+        })
+        .catch(function(){setGhSt("");});
+    },5000);// 5秒防抖
+    return function(){clearTimeout(timer);};
+  },[accts,txns,projects,acctOrder,loaded]);// 核心数据变化时触发
+
+  // 定时同步：每30分钟自动同步一次
+  useEffect(function(){
+    if(!loaded)return;
+    var interval=setInterval(function(){
+      var tok=(localStorage.getItem("cb_token")||"").trim();
+      if(!tok)return;
+      // 复用 ghSync 逻辑但静默执行
+      var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
+      var now=Date.now();
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,syncTime:now};
+      var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      var headers={Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"};
+      fetch(GH_API,{headers:headers})
+        .then(function(r){return r.ok?r.json():{};})
+        .then(function(d){
+          var body={message:"timer-sync "+new Date().toISOString(),content:content};
+          if(d&&d.sha)body.sha=d.sha;
+          return fetch(GH_API,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},headers),body:JSON.stringify(body)});
+        })
+        .then(function(r){
+          if(r&&r.ok){
+            localStorage.setItem("cb_sync_time",String(now));
+            var ts=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+            setLastGhSync(ts);localStorage.setItem("cb_last_gh_sync",ts);
+          }
+        })
+        .catch(function(){});
+    },30*60*1000);// 30分钟
+    return function(){clearInterval(interval);};
+  },[loaded,accts,txns,projects]);// accts/txns变化时重置计时器
+
 // ============================================================
 // 模块 6: 数据操作函数
 // ============================================================
@@ -633,7 +739,7 @@ function App(){
 // ============================================================
 // 模块 12: 页面 - 新增记账
 // ============================================================
- if(page==="addTxn"){
+  if(page==="addTxn"){
     function doAdd(keep){
       var errors=[];
       var amt=parseFloat(form.amount);
@@ -1112,7 +1218,14 @@ function App(){
         h("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"GitHub 云备份"),
         h("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:10,lineHeight:1.7}},"Token 需要 repo 权限。数据存储在 ",h("strong",null,GH_OWNER+"/"+GH_REPO)),
         h("div",{style:{marginBottom:10}},h(Lbl,null,"Personal Access Token"),h("input",{type:"text",value:ghToken,style:IPT,placeholder:"ghp_xxxxxxxxxxxx",onChange:function(e){var v=e.target.value.trim();setGhToken(v);localStorage.setItem("cb_token",v);}})),
-        h("div",{style:{marginBottom:6}},h(Btn,{onClick:ghSync,style:{width:"100%"},color:ghSt==="ok"?GG:ghSt==="err"?RR:PP},ghSt==="syncing"?"同步中…":ghSt==="ok"?"✓ 同步成功":ghSt==="err"?"✗ 同步失败":"☁ 同步数据")),
+        h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",marginBottom:8}},
+          h("div",null,
+            h("span",{style:{fontSize:13}},"自动同步"),
+            h("div",{style:{fontSize:11,color:"var(--text2)",marginTop:2}},"数据变化后5秒自动上传，每30分钟定时同步")
+          ),
+          h("div",{style:{width:8,height:8,borderRadius:"50%",background:ghSt==="syncing"?"#f59e0b":ghSt==="ok"?GG:"var(--bg3)",flexShrink:0,marginLeft:8}})
+        ),
+        h("div",{style:{marginBottom:6}},h(Btn,{onClick:ghSync,style:{width:"100%"},color:ghSt==="ok"?GG:ghSt==="err"?RR:PP},ghSt==="syncing"?"同步中…":ghSt==="ok"?"✓ 同步成功":ghSt==="err"?"✗ 同步失败":"☁ 立即同步")),
         lastGhSync&&h("div",{style:{fontSize:11,color:"var(--text2)",textAlign:"center"}},"上次同步: "+lastGhSync)
       ),
       // 本地备份
