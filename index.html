@@ -50,15 +50,23 @@ var CATS=[
   {id:"other",name:"其他杂项",color:"#8a8a8a",sub:["其他支出","快递运费"]}
 ];
 
-// 收入分类
+// 收入分类（与随手记一致）
 var ICATS=[
-  {id:"salary",name:"职业收入",sub:["工资收入","奖金收入","报销费用"]},
+  {id:"salary",name:"职业收入",sub:["工资收入","报销费用","加班收入","奖金收入","兼职收入","医保账户","公积金账户"]},
   {id:"fin_in",name:"理财收入",sub:["投资利息","闲置出售"]},
-  {id:"other_in",name:"其他收入",sub:["各种退款","抢红包","账户利息"]}
+  {id:"other_in",name:"其他收入",sub:["各种退款","账户利息","礼金收入","中奖收入","意外来钱","经营所得","信用卡还款","抢红包","淘宝联盟"]},
+  {id:"transfer_in",name:"代付转账",sub:["代付","团建费用"]},
+  {id:"special_in",name:"特殊转账收入",sub:["转账收入"]}
 ];
 
-// CSV分类映射
-var CAT_MAP={"食品酒水":"food","行车交通":"transport","服饰美容":"shopping","房租水电":"housing","日常家居":"daily","休闲娱乐":"entertainment","学习进修":"education","医疗保健":"health","人情往来":"social","金融保险":"finance","其他杂项":"other","代付转账":"other","特殊转账":"other","职业收入":"other","理财收入":"other","其他收入":"other"};
+// CSV分类映射（随手记一级分类 → 本地分类id）
+var CAT_MAP={
+  "食品酒水":"food","行车交通":"transport","服饰美容":"shopping","房租水电":"housing",
+  "日常家居":"daily","休闲娱乐":"entertainment","学习进修":"education","医疗保健":"health",
+  "人情往来":"social","金融保险":"finance","其他杂项":"other",
+  "职业收入":"salary","代付转账":"transfer_in","特殊转账收入":"special_in",
+  "理财收入":"fin_in","其他收入":"other_in"
+};
 
 // 账户类型（顺序即显示顺序）
 var ALAB={cash:"现金",fund:"资金账户",virtual:"虚拟账户",liability:"信用卡/负债",investment:"投资账户",receivable:"债权账户"};
@@ -198,10 +206,19 @@ function App(){
   var s42=_([]);var projects=s42[0],setProjects=s42[1];
   var s43=_("");var newProjName=s43[0],setNewProjName=s43[1];
   var s44=_(false);var showAllProj=s44[0],setShowAllProj=s44[1];
+  // 分类管理
+  var s45=_(CATS.map(function(c){return Object.assign({},c,{sub:c.sub.slice()});}));var cats=s45[0],setCats=s45[1];
+  var s46=_(ICATS.map(function(c){return Object.assign({},c,{sub:c.sub.slice()});}));var icats=s46[0],setIcats=s46[1];
+  var s47=_({}); var hiddenCats=s47[0],setHiddenCats=s47[1]; // {catId: true}
+  var s48=_({}); var hiddenSubs=s48[0],setHiddenSubs=s48[1]; // {"catId:subName": true}
 
-  function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:"food",sub:"",note:"",projectId:""};}
+  function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:cats[0]?cats[0].id:"food",sub:"",note:"",projectId:""};}
   function nav(p){setPrev(page);setPage(p);}
   function upd(setter,patch){setter(function(p){return Object.assign({},p,patch);});}
+  function findCatS(id){return cats.filter(function(c){return c.id===id;})[0]||findCat(id);}
+  function findICatS(id){return icats.filter(function(c){return c.id===id;})[0]||findICat(id);}
+  function isSubHidden(catId,sub){return !!hiddenSubs[catId+":"+sub];}
+  function isCatHidden(catId){return !!hiddenCats[catId];}
 
 // ============================================================
 // 模块 4: 计算属性 (useMemo)
@@ -217,7 +234,7 @@ function App(){
   var aTxns=useMemo(function(){return txns.filter(function(t){return t.type!=="adjust"&&t.date>=aRange.from&&t.date<=aRange.to;});},[txns,aRange]);
   var aInc=useMemo(function(){return aTxns.filter(function(t){return t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);},[aTxns,rates]);
   var aExp=useMemo(function(){return aTxns.filter(function(t){return t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);},[aTxns,rates]);
-  var catBD=useMemo(function(){var m={};aTxns.filter(function(t){return t.type==="expense";}).forEach(function(t){var c=findCat(t.catId),k=c?c.id:"other";if(!m[k])m[k]={id:k,name:c?c.name:"其他",color:c?c.color:"#8a8a8a",value:0,subs:{}};var v=toSGD(t.amount,t.currency,rates,t.date.slice(0,7));m[k].value+=v;m[k].subs[t.sub||"其他"]=(m[k].subs[t.sub||"其他"]||0)+v;});return Object.values(m).map(function(x){var sa=Object.entries(x.subs).map(function(e){return{name:e[0],value:+e[1].toFixed(2)};}).sort(function(a,b){return b.value-a.value;});return Object.assign({},x,{value:+x.value.toFixed(2),subArr:sa});}).sort(function(a,b){return b.value-a.value;});},[aTxns,rates]);
+  var catBD=useMemo(function(){var m={};aTxns.filter(function(t){return t.type==="expense"&&!hiddenCats[t.catId]&&!hiddenSubs[t.catId+":"+(t.sub||"")];}).forEach(function(t){var c=findCatS(t.catId),k=c?c.id:"other";if(!m[k])m[k]={id:k,name:c?c.name:"其他",color:c?c.color:"#8a8a8a",value:0,subs:{}};var v=toSGD(t.amount,t.currency,rates,t.date.slice(0,7));m[k].value+=v;m[k].subs[t.sub||"其他"]=(m[k].subs[t.sub||"其他"]||0)+v;});return Object.values(m).map(function(x){var sa=Object.entries(x.subs).map(function(e){return{name:e[0],value:+e[1].toFixed(2)};}).sort(function(a,b){return b.value-a.value;});return Object.assign({},x,{value:+x.value.toFixed(2),subArr:sa});}).sort(function(a,b){return b.value-a.value;});},[aTxns,rates,hiddenCats,hiddenSubs,cats]);
   var homeCBD=useMemo(function(){var m={};moTxns.filter(function(t){return t.type==="expense";}).forEach(function(t){var c=findCat(t.catId),k=c?c.id:"other";if(!m[k])m[k]={name:c?c.name:"其他",color:c?c.color:"#8a8a8a",value:0};m[k].value+=toSGD(t.amount,t.currency,rates,mo);});return Object.values(m).map(function(x){return Object.assign({},x,{value:+x.value.toFixed(2)});}).sort(function(a,b){return b.value-a.value;});},[moTxns,rates,mo]);
   var trendData=useMemo(function(){var months=[],c=new Date(aRange.from.slice(0,7)+"-01"),end=new Date(aRange.to.slice(0,7)+"-01");while(c<=end){months.push(c.getFullYear()+"-"+String(c.getMonth()+1).padStart(2,"0"));c=new Date(c.getFullYear(),c.getMonth()+1,1);}return months.map(function(mm){return{month:aMode==="year"?parseInt(mm.slice(5))+"月":mm.slice(5),income:+txns.filter(function(t){return t.date.indexOf(mm)===0&&t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,mm);},0).toFixed(2),expense:+txns.filter(function(t){return t.date.indexOf(mm)===0&&t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,mm);},0).toFixed(2)};});},[txns,rates,aRange,aMode]);
   var fltTxns=useMemo(function(){return txns.filter(function(t){if(flt.type!=="all"&&t.type!==flt.type)return false;if(flt.dateFrom&&t.date<flt.dateFrom)return false;if(flt.dateTo&&t.date>flt.dateTo)return false;if(flt.catId&&t.catId!==flt.catId)return false;if(flt.subCat&&t.sub!==flt.subCat)return false;if(flt.acctId&&t.acctId!==flt.acctId&&t.toAcctId!==flt.acctId)return false;if(flt.projectId&&t.projectId!==flt.projectId)return false;if(flt.keyword){var kw=flt.keyword.toLowerCase(),c=findCat(t.catId),a=findById(accts,t.acctId);if([t.note,t.sub,c?c.name:"",a?a.name:""].join(" ").toLowerCase().indexOf(kw)<0)return false;}return true;});},[txns,flt,accts]);
@@ -239,6 +256,10 @@ function App(){
       if(d.ls)setLastSync(d.ls);
       if(d.acctOrder)setAcctOrder(d.acctOrder);
       if(d.projects)setProjects(d.projects);
+      if(d.cats)setCats(d.cats);
+      if(d.icats)setIcats(d.icats);
+      if(d.hiddenCats)setHiddenCats(d.hiddenCats);
+      if(d.hiddenSubs)setHiddenSubs(d.hiddenSubs);
       var tok=localStorage.getItem("cb_token");if(tok)setGhToken(tok);
       var lg=localStorage.getItem("cb_last_gh_sync");if(lg)setLastGhSync(lg);
     }catch(e){}
@@ -247,8 +268,8 @@ function App(){
 
   useEffect(function(){
     if(!loaded)return;
-    try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects}));}catch(e){}
-  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,loaded]);
+    try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs}));}catch(e){}
+  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,loaded]);
 
   // 页面加载完成后自动从云端拉取最新数据
   useEffect(function(){
@@ -302,7 +323,7 @@ function App(){
       setGhSt("syncing");
       var now=Date.now();
       var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       // 先取 sha
       fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
@@ -334,7 +355,7 @@ function App(){
       // 复用 ghSync 逻辑但静默执行
       var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
       var now=Date.now();
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       var headers={Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"};
       fetch(GH_API,{headers:headers})
@@ -407,7 +428,7 @@ function App(){
 
     function doUpload(sha){
       var now=Date.now();
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       var body={message:"sync "+new Date().toISOString(),content:content};
       if(sha)body.sha=sha;
@@ -423,8 +444,12 @@ function App(){
       if(rp.vis!==undefined)setVis(rp.vis);
       if(rp.acctOrder)setAcctOrder(rp.acctOrder);
       if(rp.projects)setProjects(rp.projects);
+      if(rp.cats)setCats(rp.cats);
+      if(rp.icats)setIcats(rp.icats);
+      if(rp.hiddenCats)setHiddenCats(rp.hiddenCats);
+      if(rp.hiddenSubs)setHiddenSubs(rp.hiddenSubs);
       localStorage.setItem("cb_sync_time",String(rt));
-      try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
+      try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[],cats:rp.cats||CATS,icats:rp.icats||ICATS,hiddenCats:rp.hiddenCats||{},hiddenSubs:rp.hiddenSubs||{}}));}catch(e){}
       return Promise.resolve("downloaded");
     }
 
@@ -753,7 +778,11 @@ function App(){
       if(errors.length){alert("请填写必填项："+errors.join("、"));return;}
       addTxn({type:form.type,date:form.datetime.slice(0,10),amount:amt,currency:selAcct?selAcct.currency:"SGD",acctId:form.acctId,toAcctId:form.toAcctId,toAmount:crossCur?parseFloat(form.toAmount)||amt:amt,catId:form.catId,sub:form.sub,note:form.note,projectId:form.projectId||""},keep);
     }
-    var catSubs=form.type==="expense"?(findCat(form.catId)||{sub:[]}).sub:(findICat(form.catId)||{sub:[]}).sub;
+    var catSubs=form.type==="expense"
+      ?(findCatS(form.catId)||{sub:[]}).sub.filter(function(s){return !isSubHidden(form.catId,s);})
+      :(findICatS(form.catId)||{sub:[]}).sub.filter(function(s){return !isSubHidden(form.catId,s);});
+    var visCats=cats.filter(function(c){return !isCatHidden(c.id);});
+    var visICats=icats.filter(function(c){return !isCatHidden(c.id);});
     return h("div",{style:wrap},
       h("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
         h("button",{onClick:function(){setPage(prev);},style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
@@ -786,8 +815,8 @@ function App(){
             h("div",null,
               h(Lbl,null,h("span",null,form.type==="income"?"来源":"分类"," ",h("span",{style:{color:RR}},"*"))),
               form.type==="expense"
-                ?h("select",{value:form.catId,style:Object.assign({},IPT,!form.catId?{borderColor:RR+"88"}:{}),onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},CATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
-                :h("select",{value:form.catId,style:IPT,onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},ICATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
+                ?h("select",{value:form.catId,style:Object.assign({},IPT,!form.catId?{borderColor:RR+"88"}:{}),onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},visCats.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
+                :h("select",{value:form.catId,style:IPT,onChange:function(e){upd(setForm,{catId:e.target.value,sub:""});}},visICats.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))
             ),
             h("div",null,
               h(Lbl,null,h("span",null,"子分类 ",h("span",{style:{color:RR}},"*"))),
@@ -1252,6 +1281,12 @@ function App(){
         h("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"数据导入"),
         h(Btn,{style:{width:"100%"},onClick:function(){nav("import");}},"导入随手记 CSV")
       ),
+      // 分类管理入口
+      h("div",{style:CARD},
+        h("div",{style:{fontSize:13,fontWeight:600,marginBottom:12}},"分类管理"),
+        h("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:10}},"自定义收支分类，支持增删改、显示/隐藏"),
+        h(Btn,{style:{width:"100%"},onClick:function(){nav("catMgr");}},"管理分类")
+      ),
       // 页面操作
       h("div",{style:CARD},
         h("div",{style:{fontSize:13,fontWeight:600,marginBottom:8}},"页面操作"),
@@ -1261,6 +1296,124 @@ function App(){
       h("div",{style:Object.assign({},CARD,{borderColor:RR+"44"})},
         h("div",{style:{fontSize:13,fontWeight:600,marginBottom:8,color:RR}},"危险操作"),
         h("button",{onClick:function(){if(confirm("确定要清空所有数据？此操作不可恢复！")){setAccts([]);setTxns([]);setProjects([]);localStorage.removeItem("cb1");}},style:{width:"100%",padding:"10px",border:"0.5px solid "+RR,borderRadius:8,background:"none",color:RR,fontSize:13,cursor:"pointer"}},"清空所有数据")
+      )
+    );
+  }
+
+// ============================================================
+// 模块 20: 页面 - 分类管理
+// ============================================================
+  if(page==="catMgr"){
+    var cmTab=window._cmTab||"expense"; // expense | income
+    var cmList=cmTab==="expense"?cats:icats;
+    var cmSet=cmTab==="expense"?setCats:setIcats;
+
+    function toggleCat(id){
+      setHiddenCats(function(p){var n=Object.assign({},p);n[id]?delete n[id]:n[id]=true;return n;});
+    }
+    function toggleSub(catId,sub){
+      setHiddenSubs(function(p){var n=Object.assign({},p);var k=catId+":"+sub;n[k]?delete n[k]:n[k]=true;return n;});
+    }
+    function addCat(){
+      var name=prompt("新分类名称：");if(!name||!name.trim())return;
+      var color=CLR[cmList.length%10];
+      var id="c_"+gid();
+      cmSet(function(p){return p.concat([{id:id,name:name.trim(),color:color,sub:[]}]);});
+    }
+    function renameCat(cat){
+      var name=prompt("修改名称：",cat.name);if(!name||!name.trim())return;
+      cmSet(function(p){return p.map(function(c){return c.id===cat.id?Object.assign({},c,{name:name.trim()}):c;});});
+    }
+    function deleteCat(cat){
+      if(!confirm("删除分类「"+cat.name+"」？已记录的流水不会删除。"))return;
+      cmSet(function(p){return p.filter(function(c){return c.id!==cat.id;});});
+    }
+    function addSub(cat){
+      var name=prompt("新子分类名称：");if(!name||!name.trim())return;
+      cmSet(function(p){return p.map(function(c){return c.id===cat.id?Object.assign({},c,{sub:c.sub.concat([name.trim()])}):c;});});
+    }
+    function renameSub(cat,oldName){
+      var name=prompt("修改子分类名称：",oldName);if(!name||!name.trim())return;
+      cmSet(function(p){return p.map(function(c){return c.id===cat.id?Object.assign({},c,{sub:c.sub.map(function(s){return s===oldName?name.trim():s;})}):c;});});
+      // 同步 hiddenSubs key
+      if(hiddenSubs[cat.id+":"+oldName]){
+        setHiddenSubs(function(p){var n=Object.assign({},p);delete n[cat.id+":"+oldName];n[cat.id+":"+name.trim()]=true;return n;});
+      }
+    }
+    function deleteSub(cat,sub){
+      if(!confirm("删除子分类「"+sub+"」？"))return;
+      cmSet(function(p){return p.map(function(c){return c.id===cat.id?Object.assign({},c,{sub:c.sub.filter(function(s){return s!==sub;})}):c;});});
+    }
+
+    return h("div",{style:wrap},
+      // 顶部
+      h("div",{style:{flexShrink:0,padding:"14px 16px 0",background:"var(--bg)",borderBottom:"0.5px solid var(--bd)"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
+          h("button",{onClick:function(){setPage("settings");},style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
+          h("span",{style:{fontSize:16,fontWeight:500}},"分类管理")
+        ),
+        // 支出/收入 tab
+        h("div",{style:{display:"flex",gap:0}},
+          [["expense","支出分类"],["income","收入分类"]].map(function(x){
+            var active=cmTab===x[0];
+            return h("button",{key:x[0],onClick:function(){window._cmTab=x[0];setCats(function(p){return p.slice();});},
+              style:{flex:1,padding:"9px 0",border:"none",borderBottom:"2px solid "+(active?PP:"transparent"),background:"none",color:active?PP:"var(--text2)",fontSize:13,fontWeight:active?600:400,cursor:"pointer"}},x[1]);
+          })
+        )
+      ),
+      // 内容
+      h("div",{style:{flex:1,overflowY:"auto",padding:"12px 16px 24px"}},
+        cmList.map(function(cat){
+          var isHiddenCat=!!hiddenCats[cat.id];
+          return h("div",{key:cat.id,style:Object.assign({},CARD,{opacity:isHiddenCat?0.5:1})},
+            // 一级分类行
+            h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+              h("div",{style:{width:10,height:10,borderRadius:2,background:cat.color||PP,flexShrink:0}}),
+              h("span",{style:{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"+(isHiddenCat?"2":"")}}
+                ,cat.name+(isHiddenCat?" (已隐藏)":"")),
+              // 隐藏一级分类
+              h("button",{onClick:function(){toggleCat(cat.id);},
+                style:{padding:"3px 8px",borderRadius:6,fontSize:11,border:"0.5px solid var(--bd)",background:"none",cursor:"pointer",color:isHiddenCat?GG:"var(--text2)"}},
+                isHiddenCat?"显示":"隐藏"),
+              // 改名
+              h("button",{onClick:function(){renameCat(cat);},
+                style:{padding:"3px 8px",borderRadius:6,fontSize:11,border:"0.5px solid var(--bd)",background:"none",cursor:"pointer",color:"var(--text)"}},
+                "改名"),
+              // 删除（内置分类不允许删除）
+              !["food","transport","shopping","housing","daily","entertainment","education","health","social","finance","other","salary","fin_in","other_in","transfer_in","special_in"].includes(cat.id)&&
+              h("button",{onClick:function(){deleteCat(cat);},
+                style:{padding:"3px 8px",borderRadius:6,fontSize:11,border:"0.5px solid "+RR,background:"none",cursor:"pointer",color:RR}},
+                "删除")
+            ),
+            // 子分类列表
+            h("div",{style:{paddingLeft:18}},
+              cat.sub.map(function(sub){
+                var subKey=cat.id+":"+sub;
+                var isHiddenSub=!!hiddenSubs[subKey];
+                return h("div",{key:sub,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"0.5px solid var(--bd)"}},
+                  h("span",{style:{flex:1,fontSize:12,color:isHiddenSub?"var(--text2)":"var(--text)",textDecoration:isHiddenSub?"line-through":"none"}},sub),
+                  h("button",{onClick:function(){toggleSub(cat.id,sub);},
+                    style:{padding:"2px 6px",borderRadius:5,fontSize:10,border:"0.5px solid var(--bd)",background:"none",cursor:"pointer",color:isHiddenSub?GG:"var(--text2)"}},
+                    isHiddenSub?"显示":"隐藏"),
+                  h("button",{onClick:function(){renameSub(cat,sub);},
+                    style:{padding:"2px 6px",borderRadius:5,fontSize:10,border:"0.5px solid var(--bd)",background:"none",cursor:"pointer",color:"var(--text)"}},
+                    "改名"),
+                  h("button",{onClick:function(){deleteSub(cat,sub);},
+                    style:{padding:"2px 6px",borderRadius:5,fontSize:10,border:"0.5px solid "+RR,background:"none",cursor:"pointer",color:RR}},
+                    "删")
+                );
+              }),
+              // 添加子分类
+              h("button",{onClick:function(){addSub(cat);},
+                style:{marginTop:6,padding:"4px 10px",borderRadius:6,fontSize:11,border:"0.5px dashed var(--bd2)",background:"none",cursor:"pointer",color:PP}},
+                "+ 添加子分类")
+            )
+          );
+        }),
+        // 添加一级分类
+        h("button",{onClick:addCat,
+          style:{width:"100%",padding:"12px",border:"0.5px dashed var(--bd2)",borderRadius:12,background:"none",color:PP,fontSize:13,cursor:"pointer",fontWeight:500}},
+          "+ 添加新分类")
       )
     );
   }
