@@ -382,7 +382,7 @@ function App(){
 // ============================================================
   function addTxn(data,keep){
     setTxns(function(p){return[Object.assign({},data,{id:gid()})].concat(p);});
-    if(keep)setForm(function(p){return Object.assign({},p,{datetime:nowDT(),amount:"",note:""});});
+    if(keep)setForm(function(p){return Object.assign({},p,{amount:"",note:""});});
     else{setForm(mkForm());setPage(prev);}
   }
   function delTxn(id){setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}
@@ -990,7 +990,7 @@ function App(){
           )
         ),
         h("div",{style:{marginBottom:8}},h(Lbl,null,"项目"),h("select",{value:flt.projectId||"",style:SM,onChange:function(e){upd(setFlt,{projectId:e.target.value||""});}},h("option",{value:""},"全部"),projects.map(function(p){return h("option",{key:p.id,value:p.id},p.name);}))),
-        h("div",{style:{marginBottom:8}},h(Lbl,null,"账户"),h("select",{value:flt.acctId,style:SM,onChange:function(e){upd(setFlt,{acctId:e.target.value});}},h("option",{value:""},"全部"),accts.map(function(a){return h("option",{key:a.id,value:a.id},a.name);}))),
+        h("div",{style:{marginBottom:8}},h(Lbl,null,"账户"),h("select",{value:flt.acctId,style:SM,onChange:function(e){upd(setFlt,{acctId:e.target.value});}},h("option",{value:""},"全部"),Object.entries(ALAB).map(function(e){var typ=e[0],label=e[1];var list=sortedAccts.filter(function(a){return a.type===typ;});if(!list.length)return null;return h("optgroup",{key:typ,label:label},list.map(function(a){return h("option",{key:a.id,value:a.id},a.name+(a.hidden?" (已隐藏)":""));}));}))),
         h("button",{onClick:function(){setFlt(IF0);},style:{width:"100%",padding:"7px",border:"0.5px solid var(--bd)",borderRadius:8,background:"none",fontSize:12,cursor:"pointer",color:"var(--text2)"}},"清除筛选")
       ),
       h("div",{style:Object.assign({},CARD,{marginTop:10})},
