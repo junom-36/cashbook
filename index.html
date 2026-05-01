@@ -382,7 +382,7 @@ function App(){
 // ============================================================
   function addTxn(data,keep){
     setTxns(function(p){return[Object.assign({},data,{id:gid()})].concat(p);});
-    if(keep)setForm(function(p){return Object.assign({},p,{amount:"",note:""});});
+    if(keep)setForm(function(p){return Object.assign({},p,{amount:"",note:""}); });
     else{setForm(mkForm());setPage(prev);}
   }
   function delTxn(id){setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}
@@ -659,7 +659,7 @@ function App(){
       NAV.map(function(item){
         return h("button",{key:item.id,onClick:function(){
           setPage(item.id);
-          if(item.id==="txns"){setLim(80);setFlt(IF0);setShowFlt(false);}
+          if(item.id==="txns"){setLim(80);if(page!=="txns"){setFlt(IF0);setShowFlt(false);}}
         },style:{flex:1,padding:"10px 0 8px",border:"none",background:"none",cursor:"pointer",color:page===item.id?PP:"var(--text2)",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
           h("span",{style:{fontSize:16}},item.e),
           h("span",{style:{fontSize:10,fontWeight:page===item.id?500:400}},item.l)
@@ -764,7 +764,7 @@ function App(){
 // ============================================================
 // 模块 12: 页面 - 新增记账
 // ============================================================
- if(page==="addTxn"){
+  if(page==="addTxn"){
     function doAdd(keep){
       var errors=[];
       var amt=parseFloat(form.amount);
@@ -778,14 +778,14 @@ function App(){
       if(errors.length){alert("请填写必填项："+errors.join("、"));return;}
       addTxn({type:form.type,date:form.datetime.slice(0,10),amount:amt,currency:selAcct?selAcct.currency:"SGD",acctId:form.acctId,toAcctId:form.toAcctId,toAmount:crossCur?parseFloat(form.toAmount)||amt:amt,catId:form.catId,sub:form.sub,note:form.note,projectId:form.projectId||""},keep);
     }
- 
+
     // 可见分类列表
     var visCats=cats.filter(function(c){return !isCatHidden(c.id);});
     var visICats=icats.filter(function(c){return !isCatHidden(c.id);});
     var curCatList=form.type==="expense"?visCats:visICats;
     var curCat=curCatList.filter(function(c){return c.id===form.catId;})[0];
     var catSubs=(curCat?curCat.sub:[]).filter(function(s){return !isSubHidden(form.catId,s);});
- 
+
     // 账户按类型分组（同账户页顺序）
     function renderAcctOptGroup(forTransferTo){
       var baseAccts=forTransferTo?sortedAccts.filter(function(a){return a.id!==form.acctId;}):sortedAccts;
@@ -799,7 +799,7 @@ function App(){
       });
       return groups;
     }
- 
+
     return h("div",{style:wrap},
       h("div",{style:{padding:"16px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:10}},
         h("button",{onClick:function(){setPage(prev);},style:{border:"0.5px solid var(--bd2)",background:"var(--bg2)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:13,color:"var(--text)"}},"← 返回"),
@@ -970,7 +970,8 @@ function App(){
       h("div",{style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",marginBottom:0,borderRadius:showFlt?"12px 12px 0 0":12})},
         h("span",{style:{fontSize:14}},"🔍"),
         h("input",{type:"text",value:flt.keyword,placeholder:"搜索…",style:{flex:1,border:"none",outline:"none",fontSize:13,background:"transparent",color:"var(--text)"},onChange:function(e){upd(setFlt,{keyword:e.target.value});}}),
-        h("button",{onClick:function(){setShowFlt(function(v){return!v;});},style:{padding:"4px 10px",border:"0.5px solid var(--bd)",borderRadius:20,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text)"}},"筛选")
+        h("button",{onClick:function(){setShowFlt(function(v){return!v;});},style:{padding:"4px 10px",border:"0.5px solid var(--bd)",borderRadius:20,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text)"}},"筛选"),
+        h("button",{onClick:function(){setLim(80);},style:{padding:"4px 10px",border:"0.5px solid var(--bd)",borderRadius:20,background:"var(--bg2)",fontSize:12,cursor:"pointer",color:"var(--text2)"}},"↺")
       ),
       showFlt&&h("div",{style:Object.assign({},CARD,{borderRadius:"0 0 12px 12px",borderTop:"none",paddingTop:10,marginBottom:0})},
         h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}},
@@ -990,7 +991,17 @@ function App(){
           )
         ),
         h("div",{style:{marginBottom:8}},h(Lbl,null,"项目"),h("select",{value:flt.projectId||"",style:SM,onChange:function(e){upd(setFlt,{projectId:e.target.value||""});}},h("option",{value:""},"全部"),projects.map(function(p){return h("option",{key:p.id,value:p.id},p.name);}))),
-        h("div",{style:{marginBottom:8}},h(Lbl,null,"账户"),h("select",{value:flt.acctId,style:SM,onChange:function(e){upd(setFlt,{acctId:e.target.value});}},h("option",{value:""},"全部"),Object.entries(ALAB).map(function(e){var typ=e[0],label=e[1];var list=sortedAccts.filter(function(a){return a.type===typ;});if(!list.length)return null;return h("optgroup",{key:typ,label:label},list.map(function(a){return h("option",{key:a.id,value:a.id},a.name+(a.hidden?" (已隐藏)":""));}));}))),
+        h("div",{style:{marginBottom:8}},h(Lbl,null,"账户"),h("select",{value:flt.acctId,style:SM,onChange:function(e){upd(setFlt,{acctId:e.target.value});}},
+          h("option",{value:""},"全部"),
+          Object.entries(ALAB).map(function(e){
+            var typ=e[0],label=e[1];
+            var list=sortedAccts.filter(function(a){return a.type===typ;});
+            if(!list.length)return null;
+            return h("optgroup",{key:typ,label:label},
+              list.map(function(a){return h("option",{key:a.id,value:a.id},a.name+(a.hidden?" (已隐藏)":""));})
+            );
+          })
+        )),
         h("button",{onClick:function(){setFlt(IF0);},style:{width:"100%",padding:"7px",border:"0.5px solid var(--bd)",borderRadius:8,background:"none",fontSize:12,cursor:"pointer",color:"var(--text2)"}},"清除筛选")
       ),
       h("div",{style:Object.assign({},CARD,{marginTop:10})},
