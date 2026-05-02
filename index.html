@@ -326,7 +326,7 @@ function App(){
       var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       // 先取 sha
-      fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"}})
+      fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"},cache:"no-store"})
         .then(function(r){return r.ok?r.json():null;})
         .then(function(d){
           var body={message:"auto-sync "+new Date().toISOString(),content:content};
@@ -358,11 +358,11 @@ function App(){
       var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       var headers={Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"};
-      fetch(GH_API,{headers:headers})
-        .then(function(r){return r.ok?r.json():{};})
-        .then(function(d){
-          var body={message:"timer-sync "+new Date().toISOString(),content:content};
-          if(d&&d.sha)body.sha=d.sha;
+      fetch(GH_API,{headers:headers,cache:"no-store"})
+  .then(function(r){return r.ok?r.json():{};})
+  .then(function(d){
+    var body={message:"timer-sync "+new Date().toISOString(),content:content};
+    if(d&&d.sha)body.sha=d.sha;
           return fetch(GH_API,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},headers),body:JSON.stringify(body)});
         })
         .then(function(r){
