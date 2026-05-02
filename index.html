@@ -426,13 +426,17 @@ function App(){
     var tok=ghToken.trim();
     var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
 
-    function doUpload(sha){
+    function doUpload(ignoredSha){
       var now=Date.now();
       var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-      var body={message:"sync "+new Date().toISOString(),content:content};
-      if(sha)body.sha=sha;
-      return fetch(GH_API,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},body:JSON.stringify(body)})
+      return fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"},cache:"no-store"})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(latest){
+          var body={message:"sync "+new Date().toISOString(),content:content};
+          if(latest&&latest.sha)body.sha=latest.sha;
+          return fetch(GH_API,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+        })
         .then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error("上传失败 HTTP "+r.status+": "+t.slice(0,100));});localStorage.setItem("cb_sync_time",String(now));return"uploaded";});
     }
 
