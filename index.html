@@ -336,10 +336,17 @@ function App(){
         .then(function(r){
           if(r&&r.ok){
             localStorage.setItem("cb_sync_time",String(now));
+            // 同时把syncTime写入cb1，防止冷启动后时间戳对不上被云端覆盖
+            try{
+              var cb1=JSON.parse(localStorage.getItem("cb1")||"{}");
+              cb1.syncTime=now;
+              localStorage.setItem("cb1",JSON.stringify(cb1));
+            }catch(e){}
             var ts=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
             setLastGhSync(ts);localStorage.setItem("cb_last_gh_sync",ts);
             setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
-          }else{setGhSt("");}
+          }
+          else{setGhSt("");}
         })
         .catch(function(){setGhSt("");});
     },5000);// 5秒防抖
@@ -353,7 +360,10 @@ function App(){
       var tok=(localStorage.getItem("cb_token")||"").trim();
       if(!tok)return;
       // 复用 ghSync 逻辑但静默执行
-      var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
+      var localTime=Math.max(
+        localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0,
+        (function(){try{var d=JSON.parse(localStorage.getItem("cb1")||"{}");return d.syncTime||0;}catch(e){return 0;}})()
+      );      
       var now=Date.now();
       var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
