@@ -115,7 +115,7 @@ function Donut(p){
   var slices=data.map(function(d,i){var pct=total>0?d.value/total:0,offset=-(circ*cum-circ/4),dash=circ*pct-1;cum+=pct;return h("circle",{key:i,cx:cx,cy:cy,r:r,fill:"none",stroke:d.color||CLR[i%10],strokeWidth:14,strokeDasharray:Math.max(0,dash)+" "+circ,strokeDashoffset:offset});});
   return h("div",{style:{display:"flex",alignItems:"center",gap:14,padding:"4px 0"}},
     h("svg",{width:110,height:110,style:{flexShrink:0}},h("circle",{cx:cx,cy:cy,r:r,fill:"none",stroke:"var(--bg3)",strokeWidth:14}),slices),
-    h("div",{style:{flex:1,minWidth:0}},data.slice(0,6).map(function(d,i){
+    h("div",{style:{flex:1,minWidth:0}},data.map(function(d,i){
       var pct=total>0?(d.value/total*100).toFixed(0)+"%":"";
       var amt="S$"+Math.round(d.value).toLocaleString("en-SG");
       return h("div",{key:i,style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
