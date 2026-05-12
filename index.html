@@ -399,7 +399,7 @@ function App(){
   function startEdit(t){setEditId(t.id);setEditF({type:t.type,date:t.date,amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||"",projectId:t.projectId||""});}
   function saveEdit(){
     var amt=parseFloat(editF.amount);if(isNaN(amt)){setEditId(null);return;}
-    setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,amount:amt,acctId:editF.acctId,catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||""});});});
+    setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,amount:amt,acctId:editF.acctId,catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||"",type:editF.type||t.type});});});
     setEditId(null);
   }
   function adjBal(id){
