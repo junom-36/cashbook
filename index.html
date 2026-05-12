@@ -1258,23 +1258,55 @@ function App(){
         )
       ),
       // 收入构成 tab
-      aTab==="income"&&(function(){
-        var m={};
-        aTxns.filter(function(t){return t.type==="income";}).forEach(function(t){var ic=findICat(t.catId),k=t.sub||(ic?ic.name:"其他");if(!m[k])m[k]={name:k,value:0,color:CLR[Object.keys(m).length%10]};m[k].value+=toSGD(t.amount,t.currency,rates,t.date.slice(0,7));});
-        var items=Object.values(m).map(function(x){return Object.assign({},x,{value:+x.value.toFixed(2)});}).sort(function(a,b){return b.value-a.value;});
-        if(!items.length)return h("div",{style:Object.assign({},CARD,{textAlign:"center",color:"var(--text2)",fontSize:13})},"暂无收入记录");
-        return h(Fragment,null,
-          h("div",{style:CARD},h("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"收入构成"),h("div",{style:{fontSize:20,fontWeight:500,color:GG,marginBottom:10}},h(Num,{v:fmtS(aInc),vis:vis})),h(Donut,{data:items,total:aInc})),
-          items.map(function(item,i){
-            var pct=aInc>0?(item.value/aInc*100).toFixed(1):0;
-            return h("div",{key:i,style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:10})},
-              h("div",{style:{width:10,height:10,borderRadius:2,background:item.color,flexShrink:0}}),
-              h("div",{style:{flex:1}},h("div",{style:{fontSize:13}},item.name),h("div",{style:{width:"100%",height:3,background:"var(--bg3)",borderRadius:2,marginTop:3}},h("div",{style:{width:pct+"%",height:"100%",background:item.color,borderRadius:2}}))),
-              h("div",{style:{textAlign:"right"}},h("div",{style:{fontSize:13,fontWeight:500}},h(Num,{v:"S$"+item.value.toFixed(2),vis:vis})),h("div",{style:{fontSize:11,color:"var(--text2)"}},pct+"%"))
+      aTab==="income"&&(!incBD.length
+  ?h("div",{style:Object.assign({},CARD,{textAlign:"center",color:"var(--text2)",fontSize:13})},"暂无收入记录")
+  :h(Fragment,null,
+    h("div",{style:CARD},
+      h("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"收入构成"),
+      h("div",{style:{fontSize:20,fontWeight:500,color:GG,marginBottom:10}},h(Num,{v:fmtS(aInc),vis:vis})),
+      h(Donut,{data:incBD,total:aInc})
+    ),
+    incBD.map(function(c){
+      var isExp=expICats.has(c.id),pct=aInc>0?(c.value/aInc*100).toFixed(1):0;
+      var ic=findICatS(c.id);
+      var color=ic?CLR[["salary","fin_in","other_in","transfer_in","special_in"].indexOf(c.id)%10]||GG:GG;
+      return h("div",{key:c.id,style:Object.assign({},CARD,{padding:0,overflow:"hidden"})},
+        h("div",{onClick:function(){setExpICats(function(p){var n=new Set(p);n.has(c.id)?n.delete(c.id):n.add(c.id);return n;});},
+          style:{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer"}},
+          h("div",{style:{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}),
+          h("div",{style:{flex:1}},
+            h("div",{style:{fontSize:13,fontWeight:500}},c.name),
+            h("div",{style:{width:"100%",height:3,background:"var(--bg3)",borderRadius:2,marginTop:3}},
+              h("div",{style:{width:pct+"%",height:"100%",background:color,borderRadius:2}})
+            )
+          ),
+          h("div",{style:{textAlign:"right"}},
+            h("div",{style:{fontSize:13,fontWeight:500}},h(Num,{v:"S$"+c.value.toFixed(2),vis:vis})),
+            h("div",{style:{fontSize:11,color:"var(--text2)"}},pct+"%")
+          ),
+          h("span",{style:{fontSize:11,color:"var(--text2)"}},isExp?"▲":"▼")
+        ),
+        isExp&&h("div",{style:{borderTop:"0.5px solid var(--bd)"}},
+          c.subArr.map(function(s){
+            var sp=c.value>0?(s.value/c.value*100).toFixed(0):0;
+            return h("div",{key:s.name,
+              onClick:function(){setFlt({type:"income",dateFrom:aRange.from,dateTo:aRange.to,catId:c.id,subCat:s.name,acctId:"",keyword:"",projectId:""});setPage("txns");setShowFlt(true);},
+              style:{display:"flex",alignItems:"center",gap:10,padding:"7px 14px 7px 28px",borderBottom:"0.5px solid var(--bd)",cursor:"pointer",background:"var(--bg2)"}},
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:12}},s.name),
+                h("div",{style:{width:"100%",height:2,background:"var(--bg)",borderRadius:1,marginTop:2}},
+                  h("div",{style:{width:sp+"%",height:"100%",background:color+"88",borderRadius:1}})
+                )
+              ),
+              h("div",{style:{fontSize:12}},h(Num,{v:"S$"+s.value.toFixed(2),vis:vis})),
+              h("span",{style:{fontSize:10,color:PP}},"→")
             );
           })
-        );
-      })(),
+        )
+      );
+    })
+  )
+),
       // 项目汇总 tab
       aTab==="project"&&(!projBD.length
         ?h("div",{style:Object.assign({},CARD,{textAlign:"center",color:"var(--text2)",fontSize:13})},"该时间段内无项目记录")
