@@ -292,7 +292,7 @@ function App(){
 
   useEffect(function(){
     if(!loaded)return;
-    try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs}));}catch(e){}
+    try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,lastModified:Date.now()}));}catch(e){}
   },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,loaded]);
 
   // 页面加载完成后自动从云端拉取最新数据
@@ -301,7 +301,11 @@ function App(){
     var tok=(localStorage.getItem("cb_token")||"").trim();
     if(!tok)return;
     // 静默下载：只在云端比本地新时才覆盖，不弹 alert
-    var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
+    var localTime=Math.max(
+  localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0,
+  (function(){try{var d=JSON.parse(localStorage.getItem("cb1")||"{}");return d.syncTime||0;}catch(e){return 0;}})()
+);
+var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||"{}");return d.lastModified||0;}catch(e){return 0;}})();
     function tryFetch(url,headers){
       return fetch(url,{headers:headers}).then(function(r){if(!r.ok)throw 0;return r.json();});
     }
@@ -319,7 +323,7 @@ function App(){
       return rp;
     }).then(function(rp){
       if(!rp||!rp.syncTime)return;
-      if(rp.syncTime>localTime){
+      if(rp.syncTime>localTime&&localModified<=localTime){
         // 云端更新，静默覆盖本地
         if(rp.accts)setAccts(rp.accts);
         if(rp.txns)setTxns(rp.txns);
@@ -372,7 +376,7 @@ function App(){
           }
           else{setGhSt("");}
         })
-        .catch(function(){setGhSt("");});
+        .catch(function(){setGhSt("err");alert("⚠️ 自动同步失败，请手动点击「立即同步」");});
     },5000);// 5秒防抖
     return function(){clearTimeout(timer);};
   },[accts,txns,projects,acctOrder,loaded]);// 核心数据变化时触发
