@@ -532,7 +532,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
             var localHasData=accts.length>0||txns.length>0;
             if(!localHasData&&rp)return doDownload(rp,rt);
             if(localHasData&&!rp)return doUpload(sha);
-            if(localHasData&&rp){if(rt>localTime)return doDownload(rp,rt);return doUpload(sha);}
+            if(localHasData&&rp){var lm2=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||"{}");return d.lastModified||0;}catch(e){return 0;}})();if(rt>localTime&&lm2<=localTime)return doDownload(rp,rt);return doUpload(sha);}
             return"same";
           });
       })
