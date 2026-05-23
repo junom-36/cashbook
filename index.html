@@ -212,7 +212,7 @@ function App(){
   var s46=_(ICATS.map(function(c){return Object.assign({},c,{sub:c.sub.slice()});}));var icats=s46[0],setIcats=s46[1];
   var s47=_({}); var hiddenCats=s47[0],setHiddenCats=s47[1]; // {catId: true}
   var s48=_({}); var hiddenSubs=s48[0],setHiddenSubs=s48[1]; // {"catId:subName": true}
-
+  var s49=_(false);var userModified=s49[0],setUserModified=s49[1];
   function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:cats[0]?cats[0].id:"food",sub:"",note:"",projectId:""};}
   function nav(p){setPrev(page);setPage(p);}
   function upd(setter,patch){setter(function(p){return Object.assign({},p,patch);});}
@@ -292,8 +292,7 @@ function App(){
 
   useEffect(function(){
     if(!loaded)return;
-    try{localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,lastModified:Date.now()}));}catch(e){}
-  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,loaded]);
+try{var _prev=JSON.parse(localStorage.getItem("cb1")||"{}");var _lm=userModified?Date.now():(_prev.lastModified||0);localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,lastModified:_lm}));}catch(e){}  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,loaded]);
 
   // 页面加载完成后自动从云端拉取最新数据
   useEffect(function(){
@@ -336,7 +335,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
         var now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
         setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);
-        setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
+        setUserModified(false);setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
       }
     }).catch(function(){});// 静默失败，不影响使用
   },[loaded]);// 仅在加载完成后触发一次
@@ -419,19 +418,19 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
 // 模块 6: 数据操作函数
 // ============================================================
   function addTxn(data,keep){
+    setUserModified(true);
     setTxns(function(p){return[Object.assign({},data,{id:gid()})].concat(p);});
     if(keep)setForm(function(p){return Object.assign({},p,{amount:"",note:""}); });
     else{setForm(mkForm());setPage(prev);}
   }
-  function delTxn(id){setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}
-  function startEdit(t){setEditId(t.id);setEditF({type:t.type,date:t.date,amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||"",projectId:t.projectId||""});}
+  function delTxn(id){setUserModified(true);setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}  function startEdit(t){setEditId(t.id);setEditF({type:t.type,date:t.date,amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||"",projectId:t.projectId||""});}
   function saveEdit(){
-    var amt=parseFloat(editF.amount);if(isNaN(amt)){setEditId(null);return;}
+    setUserModified(true); var amt=parseFloat(editF.amount);if(isNaN(amt)){setEditId(null);return;}
     setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,amount:amt,acctId:editF.acctId,toAcctId:editF.toAcctId||t.toAcctId||"",toAmount:editF.toAcctId?amt:(t.toAmount||amt),catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||"",type:editF.type||t.type});});});
     setEditId(null);
   }
   function adjBal(id){
-    var a=findById(accts,id);if(!a)return;
+    setUserModified(true); var a=findById(accts,id);if(!a)return;
     var target=parseFloat(adjVal);if(isNaN(target)){setAdjId(null);return;}
     var diff=+(target-(bals[id]||0)).toFixed(6);
     if(Math.abs(diff)<0.001){setAdjId(null);return;}
@@ -492,7 +491,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
       if(rp.hiddenSubs)setHiddenSubs(rp.hiddenSubs);
       localStorage.setItem("cb_sync_time",String(rt));
       try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[],cats:rp.cats||CATS,icats:rp.icats||ICATS,hiddenCats:rp.hiddenCats||{},hiddenSubs:rp.hiddenSubs||{}}));}catch(e){}
-      return Promise.resolve("downloaded");
+      setUserModified(false);return Promise.resolve("downloaded");
     }
 
     // 先获取文件info，大文件用blob API
