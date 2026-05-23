@@ -655,6 +655,15 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   var eCat=findCat(editF.catId);
   return h("div",{style:{padding:"12px 0",borderBottom:"0.5px solid var(--bd)"}},
     h("div",{style:{fontSize:12,fontWeight:500,color:PP,marginBottom:8}},"编辑流水"),
+           h("div",{style:{marginBottom:8}},
+  h(Lbl,null,"类型"),
+  h("div",{style:{display:"flex",gap:8}},
+    [["expense","支出",RR],["income","收入",GG],["transfer","转账",PP]].map(function(x){
+      return h("button",{key:x[0],onClick:function(){upd(setEditF,{type:x[0]});},
+        style:{flex:1,padding:"7px 4px",border:"1.5px solid "+(editF.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:500,background:editF.type===x[0]?x[2]+"18":"var(--bg2)",color:editF.type===x[0]?x[2]:"var(--text2)"}},x[1]);
+    })
+  )
+),
     h("div",{style:{marginBottom:8}},
   h(Lbl,null,"类型"),
   h("div",{style:{display:"flex",gap:8}},
