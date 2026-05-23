@@ -346,7 +346,8 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
     var tok=(localStorage.getItem("cb_token")||"").trim();
     if(!tok)return;
     if(!accts.length&&!txns.length)return;// 无数据不上传
-    if(!userModified)return;// 没有用户修改不上传    var timer=setTimeout(function(){
+    if(!userModified)return;// 没有用户修改不上传    
+      var timer=setTimeout(function(){
       setGhSt("syncing");
       var now=Date.now();
       var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
