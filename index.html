@@ -428,7 +428,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   function delTxn(id){setUserModified(true);setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}  function startEdit(t){setEditId(t.id);setEditF({type:t.type,date:t.date,datetime:t.datetime||t.date+"T00:00",amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||"",projectId:t.projectId||""});}
   function saveEdit(){
     setUserModified(true); var amt=parseFloat(editF.amount);if(isNaN(amt)){setEditId(null);return;}
-    setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,datetime:editF.datetime||editF.date+"T00:00",amount:amt,acctId:editF.acctId,toAcctId:editF.toAcctId||t.toAcctId||"",toAmount:editF.toAcctId?amt:(t.toAmount||amt),catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||"",type:editF.type||t.type});});});
+    setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,datetime:editF.datetime||editF.date+"T00:00",amount:amt,currency:(findById(accts,editF.acctId)||{}).currency||t.currency,acctId:editF.acctId,toAcctId:editF.toAcctId||t.toAcctId||"",toAmount:editF.toAcctId?amt:(t.toAmount||amt),catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||"",type:editF.type||t.type});});});
     setEditId(null);
   }
   function adjBal(id){
