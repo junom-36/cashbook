@@ -652,7 +652,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
 
     // 编辑状态
     if(editId===t.id){
-  var eCat=findCat(editF.catId);
+  var eCat=findCatS(editF.catId);
   return h("div",{style:{padding:"12px 0",borderBottom:"0.5px solid var(--bd)"}},
     h("div",{style:{fontSize:12,fontWeight:500,color:PP,marginBottom:8}},"编辑流水"),
            h("div",{style:{marginBottom:8}},
@@ -672,7 +672,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
     !isAdj&&h("div",{style:{marginBottom:8}},h(Lbl,null,"账户"),h("select",{value:editF.acctId,style:SM,onChange:function(e){upd(setEditF,{acctId:e.target.value});}},Object.entries(ALAB).map(function(e){var typ=e[0],label=e[1];var list=sortedAccts.filter(function(a){return a.type===typ;});if(!list.length)return null;return h("optgroup",{key:typ,label:label},list.map(function(a){return h("option",{key:a.id,value:a.id},a.name);}));}))),
     editF.type==="transfer"&&h("div",{style:{marginBottom:8}},h(Lbl,null,"转入账户"),h("select",{value:editF.toAcctId||"",style:SM,onChange:function(e){upd(setEditF,{toAcctId:e.target.value});}},h("option",{value:""},"请选择"),accts.filter(function(a){return a.id!==editF.acctId;}).map(function(a){return h("option",{key:a.id,value:a.id},a.name);}))),
     (editF.type==="expense"||editF.type==="income")&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},
-      h("div",null,h(Lbl,null,"分类"),h("select",{value:editF.catId,style:SM,onChange:function(e){upd(setEditF,{catId:e.target.value,sub:""});}},CATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))),
+      h("div",null,h(Lbl,null,"分类"),h("select",{value:editF.catId,style:SM,onChange:function(e){upd(setEditF,{catId:e.target.value,sub:""});}},cats.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))),
       h("div",null,h(Lbl,null,"子分类"),h("select",{value:editF.sub,style:SM,onChange:function(e){upd(setEditF,{sub:e.target.value});}},h("option",{value:""},"无"),(eCat?eCat.sub:[]).map(function(s){return h("option",{key:s,value:s},s);})))
     ),
     h("div",{style:{marginBottom:8}},h(Lbl,null,"项目"),h("select",{value:editF.projectId||"",style:SM,onChange:function(e){upd(setEditF,{projectId:e.target.value});}},h("option",{value:""},"无"),projects.map(function(p){return h("option",{key:p.id,value:p.id},p.name);}))),
@@ -870,7 +870,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
           h(Lbl,null,"类型"),
           h("div",{style:{display:"flex",gap:8,marginBottom:14}},
             [["expense","支出",RR],["income","收入",GG],["transfer","转账",PP]].map(function(x){
-              return h("button",{key:x[0],onClick:function(){upd(setForm,{type:x[0],catId:x[0]==="expense"?(visCats[0]?visCats[0].id:""):(visICats[0]?visICats[0].id:""),sub:""});},
+  return h("button",{key:x[0],onClick:function(){upd(setForm,{type:x[0],catId:x[0]==="expense"?(visCats[0]?visCats[0].id:""):(visICats[0]?visICats[0].id:""),sub:"",toAcctId:""});},
                 style:{flex:1,padding:"9px 4px",border:"1.5px solid "+(form.type===x[0]?x[2]:"var(--bd)"),borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,background:form.type===x[0]?x[2]+"18":"var(--bg2)",color:form.type===x[0]?x[2]:"var(--text2)"}},x[1]);
             })
           ),
