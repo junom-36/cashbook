@@ -550,7 +550,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   }
 
   function exportJSON(){
-    var b=new Blob([JSON.stringify({accts:accts,txns:txns,rates:rates,projects:projects},null,2)],{type:"application/json"});
+    var b=new Blob([JSON.stringify({accts:accts,txns:txns,rates:rates,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs},null,2)],{type:"application/json"});
     var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="cashbook_backup.json";a.click();URL.revokeObjectURL(u);
   }
   function restoreJSON(file){
