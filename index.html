@@ -428,6 +428,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   function delTxn(id){setUserModified(true);setTxns(function(p){return p.filter(function(t){return t.id!==id;});});}  function startEdit(t){setEditId(t.id);setEditF({type:t.type,date:t.date,datetime:t.datetime||t.date+"T00:00",amount:String(Math.abs(t.amount)),acctId:t.acctId,toAcctId:t.toAcctId||"",catId:t.catId||"",sub:t.sub||"",note:t.note||"",projectId:t.projectId||""});}
   function saveEdit(){
     setUserModified(true); var amt=parseFloat(editF.amount);if(isNaN(amt)){setEditId(null);return;}
+    if(editF.type!=="transfer"&&!editF.sub){alert("请选择子分类");return;}
     setTxns(function(p){return p.map(function(t){return t.id!==editId?t:Object.assign({},t,{date:editF.date,datetime:editF.datetime||editF.date+"T00:00",amount:amt,currency:(findById(accts,editF.acctId)||{}).currency||t.currency,acctId:editF.acctId,toAcctId:editF.toAcctId||t.toAcctId||"",toAmount:editF.toAcctId?amt:(t.toAmount||amt),catId:editF.catId,sub:editF.sub,note:editF.note,projectId:editF.projectId||"",type:editF.type||t.type});});});
     setEditId(null);
   }
@@ -673,7 +674,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
     editF.type==="transfer"&&h("div",{style:{marginBottom:8}},h(Lbl,null,"转入账户"),h("select",{value:editF.toAcctId||"",style:SM,onChange:function(e){upd(setEditF,{toAcctId:e.target.value});}},h("option",{value:""},"请选择"),accts.filter(function(a){return a.id!==editF.acctId;}).map(function(a){return h("option",{key:a.id,value:a.id},a.name);}))),
     (editF.type==="expense"||editF.type==="income")&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},
       h("div",null,h(Lbl,null,"分类"),h("select",{value:editF.catId,style:SM,onChange:function(e){upd(setEditF,{catId:e.target.value,sub:""});}},cats.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))),
-      h("div",null,h(Lbl,null,"子分类"),h("select",{value:editF.sub,style:SM,onChange:function(e){upd(setEditF,{sub:e.target.value});}},h("option",{value:""},"无"),(eCat?eCat.sub:[]).map(function(s){return h("option",{key:s,value:s},s);})))
+      h("div",null,h(Lbl,null,"子分类"),h("select",{value:editF.sub,style:SM,onChange:function(e){upd(setEditF,{sub:e.target.value});}},h("option",{value:"",disabled:true},"请选择子分类"),(eCat?eCat.sub:[]).map(function(s){return h("option",{key:s,value:s},s);})))
     ),
     h("div",{style:{marginBottom:8}},h(Lbl,null,"项目"),h("select",{value:editF.projectId||"",style:SM,onChange:function(e){upd(setEditF,{projectId:e.target.value});}},h("option",{value:""},"无"),projects.map(function(p){return h("option",{key:p.id,value:p.id},p.name);}))),
     h("div",{style:{marginBottom:10}},h(Lbl,null,"备注"),h("input",{type:"text",value:editF.note,style:SM,onChange:function(e){upd(setEditF,{note:e.target.value});}})),
