@@ -1480,6 +1480,9 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
     function renameSub(cat,oldName){
       var name=prompt("修改子分类名称：",oldName);if(!name||!name.trim())return;
       cmSet(function(p){return p.map(function(c){return c.id===cat.id?Object.assign({},c,{sub:c.sub.map(function(s){return s===oldName?name.trim():s;})}):c;});});
+      // 同步历史流水的sub字段
+      setTxns(function(p){return p.map(function(t){if(t.catId===cat.id&&t.sub===oldName)return Object.assign({},t,{sub:name.trim()});return t;});});
+      setUserModified(true);
       // 同步 hiddenSubs key
       if(hiddenSubs[cat.id+":"+oldName]){
         setHiddenSubs(function(p){var n=Object.assign({},p);delete n[cat.id+":"+oldName];n[cat.id+":"+name.trim()]=true;return n;});
