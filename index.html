@@ -556,7 +556,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   }
   function restoreJSON(file){
     var r=new FileReader();
-    r.onload=function(e){try{var d=JSON.parse(e.target.result);if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.projects)setProjects(d.projects);alert("恢复成功！");}catch(err){alert("格式错误");}};
+    r.onload=function(e){try{var d=JSON.parse(e.target.result);if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.projects)setProjects(d.projects);if(d.cats)setCats(d.cats);if(d.icats)setIcats(d.icats);if(d.hiddenCats)setHiddenCats(d.hiddenCats);if(d.hiddenSubs)setHiddenSubs(d.hiddenSubs);setUserModified(true);alert("恢复成功！");}catch(err){alert("格式错误");}};
     r.readAsText(file);
   }
 
