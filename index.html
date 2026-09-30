@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -58,6 +59,48 @@ var ICATS=[
   {id:"transfer_in",name:"代付转账",sub:["代付","团建费用"]},
   {id:"special_in",name:"特殊转账收入",sub:["转账收入"]}
 ];
+
+// ============================================================
+// 年度报告：月度预算默认配置 + 资产分层默认配置
+// ============================================================
+// 月度预算：按分类id -> {子分类名: 预算金额}；buffer 是"机动预算"，只加进该分类的总额度，不对应具体子分类
+var DEF_BUDGETS={
+  monthly:{
+    housing:{"房租":2800,"水电煤气":150,"上网费":50,"手机话费":30},
+    food:{"早午晚餐":1100,"蔬菜水果":100,"水饮零食":100,"咖啡":30},
+    transport:{"公共交通":100,"打车租车":80},
+    daily:{"日常用品":100,"快消品":100},
+    entertainment:{"日常娱乐(月)":100},
+    education:{"电子订阅(月)":40},
+    finance:{"SG税(月)":2367}
+  },
+  buffer:{food:150}
+};
+// 资产分层：每层的展示信息（target 是目标占比，纯展示用）
+var ASSET_LAYERS=[
+  {key:"cushion",label:"安全垫 / 低风险",target:"30–34%",color:"#4a9e5c"},
+  {key:"equity",label:"全球权益",target:"34–38%",color:"#3a7fc1"},
+  {key:"yield_sg",label:"SG 收息资产",target:"22–26%",color:"#e8803a"},
+  {key:"gold",label:"黄金",target:"5–7%",color:"#d4a017"},
+  {key:"cny",label:"人民币资产",target:"—",color:"#c45689"},
+  {key:"other",label:"待调整 / 其他资产",target:"—",color:"#8a8a8a"}
+];
+// 首次使用时按账户名称自动猜一次分层归属，之后完全由用户在「资产分层管理」里调整、不会再被自动覆盖
+var LAYER_SEED_NAMES={
+  cushion:["UOB One Account 储蓄账户","OCBC 360 储蓄账户","MOOMOO余额","投资-OCBC 短债","HSBC 储蓄账户","HSBC货基fullerton","SG 现金"],
+  equity:["MOOMOO-QQQ","MOOMOO-VOO","MOOMOO-VXUS","投资-OCBC 标普500","投资-天弘标普500（支付宝）","投资-大成纳斯达克100ETF","投资-Pending博时标普500基金ETF","投资-Pending建信纳斯达克100","投资-Pending摩尔标普500（支付宝）"],
+  yield_sg:["MOOMOO-C38U-REITs","MOOMOO-P40U-REITs","MOOMOO-M44U-REITs","MOOMOO-D05-DBS","MOOMOO-ME8U-REITs","MOOMOO-O39-OCBC"],
+  gold:["投资-招商黄金活期"],
+  cny:["投资-朝朝宝","债权-家里","投资-季季宝","招商借记卡3901","投资-华泰港股通（支付宝）","北京银行借记卡 2365","CN 现金","余额宝","农业银行保费卡 3611","资金账户-支付宝","资金账户-微信钱包","招商借记卡0219","工商借记卡 4768"],
+  other:["投资-MariBank Invest"]
+};
+function seedAcctLayer(list){
+  var nameToLayer={};
+  Object.keys(LAYER_SEED_NAMES).forEach(function(k){LAYER_SEED_NAMES[k].forEach(function(n){nameToLayer[n]=k;});});
+  var m={};
+  (list||[]).forEach(function(a){var lk=nameToLayer[(a.name||"").trim()];if(lk)m[a.id]=lk;});
+  return m;
+}
 
 // CSV分类映射（随手记一级分类 → 本地分类id）
 var CAT_MAP={
@@ -213,6 +256,12 @@ function App(){
   var s47=_({}); var hiddenCats=s47[0],setHiddenCats=s47[1]; // {catId: true}
   var s48=_({}); var hiddenSubs=s48[0],setHiddenSubs=s48[1]; // {"catId:subName": true}
   var s49=_(false);var userModified=s49[0],setUserModified=s49[1];
+  // 年度报告：预算配置 & 资产分层
+  var s50=_(DEF_BUDGETS);var budgets=s50[0],setBudgets=s50[1];
+  var s51=_({});var acctLayer=s51[0],setAcctLayer=s51[1]; // {acctId: layerKey}
+  var s52=_(new Set());var expRptCats=s52[0],setExpRptCats=s52[1]; // 报告页展开的分类/分层 key
+  var s53=_(false);var rptEditBudget=s53[0],setRptEditBudget=s53[1];
+  var s54=_(false);var rptEditLayers=s54[0],setRptEditLayers=s54[1];
   function mkForm(){return{type:"expense",datetime:nowDT(),amount:"",toAmount:"",acctId:accts[0]?accts[0].id:"",toAcctId:"",catId:cats[0]?cats[0].id:"food",sub:"",note:"",projectId:""};}
   function nav(p){setPrev(page);setPage(p);}
   function upd(setter,patch){setter(function(p){return Object.assign({},p,patch);});}
@@ -267,6 +316,107 @@ function App(){
   },[aTxns,rates,icats]);var projBD=useMemo(function(){return projects.map(function(proj){var pts=aTxns.filter(function(t){return t.projectId===proj.id;});var exp=pts.filter(function(t){return t.type==="expense";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);var inc=pts.filter(function(t){return t.type==="income";}).reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,t.date.slice(0,7));},0);return{id:proj.id,name:proj.name,color:proj.color||PP,expense:+exp.toFixed(2),income:+inc.toFixed(2),count:pts.length};}).filter(function(p){return p.count>0;}).sort(function(a,b){return b.expense-a.expense;});},[projects,aTxns,rates]);
 
 // ============================================================
+// 模块 4b: 年度报告 - 计算属性
+// ============================================================
+  // "投资亏损"分类（按名称找，不写死id；找不到就整块跳过）
+  var invLossCat=useMemo(function(){return cats.filter(function(c){return c.name==="投资亏损";})[0]||null;},[cats]);
+  // 报告覆盖的月份列表，跟 trendData 用同一套区间(aRange)
+  var rpMonths=useMemo(function(){
+    var months=[],c=new Date(aRange.from.slice(0,7)+"-01"),end=new Date(aRange.to.slice(0,7)+"-01");
+    while(c<=end){months.push(c.getFullYear()+"-"+String(c.getMonth()+1).padStart(2,"0"));c=new Date(c.getFullYear(),c.getMonth()+1,1);}
+    return months;
+  },[aRange]);
+  // 支出明细（不含投资亏损），按分类 -> 二级分类 -> 月份 汇总
+  var rpExpDetail=useMemo(function(){
+    var expTxns=aTxns.filter(function(t){return t.type==="expense"&&(!invLossCat||t.catId!==invLossCat.id);});
+    return cats.filter(function(c){return !invLossCat||c.id!==invLossCat.id;}).map(function(c){
+      var declared=c.sub||[];
+      var present={};
+      expTxns.filter(function(t){return t.catId===c.id;}).forEach(function(t){present[t.sub||"其他"]=1;});
+      var subNames=declared.concat(Object.keys(present).filter(function(s){return declared.indexOf(s)<0;}));
+      var subs=subNames.map(function(sub){
+        var mVals={};rpMonths.forEach(function(m){mVals[m]=0;});
+        var total=0;
+        expTxns.filter(function(t){return t.catId===c.id&&(t.sub||"")===sub;}).forEach(function(t){
+          var mm=t.date.slice(0,7),v=toSGD(t.amount,t.currency,rates,mm);
+          if(mVals[mm]!==undefined)mVals[mm]+=v;
+          total+=v;
+        });
+        return{name:sub,total:+total.toFixed(2),avg:+(total/(rpMonths.length||1)).toFixed(2),months:rpMonths.map(function(m){return+mVals[m].toFixed(2);})};
+      });
+      var catTotal=subs.reduce(function(s,x){return s+x.total;},0);
+      var catMonths=rpMonths.map(function(m,i){return+subs.reduce(function(s,x){return s+x.months[i];},0).toFixed(2);});
+      return{id:c.id,name:c.name,color:c.color,total:+catTotal.toFixed(2),avg:+(catTotal/(rpMonths.length||1)).toFixed(2),months:catMonths,subs:subs};
+    }).sort(function(a,b){return b.total-a.total;});
+  },[aTxns,cats,invLossCat,rpMonths,rates]);
+  var rpExpTotal=useMemo(function(){return+rpExpDetail.reduce(function(s,c){return s+c.total;},0).toFixed(2);},[rpExpDetail]);
+  // 月度预算 vs 实际：只统计 budgets.monthly 里登记的二级分类
+  var rpBudget=useMemo(function(){
+    var expTxns=aTxns.filter(function(t){return t.type==="expense";});
+    var catRows=Object.keys(budgets.monthly||{}).map(function(catId){
+      var cat=findCatS(catId);
+      var subMap=budgets.monthly[catId]||{};
+      var buffer=(budgets.buffer||{})[catId]||0;
+      var subBudgetSum=Object.values(subMap).reduce(function(s,v){return s+v;},0);
+      var budgetTotal=subBudgetSum+buffer;
+      var monthVals=rpMonths.map(function(m){
+        return+Object.keys(subMap).reduce(function(s,sub){
+          return s+expTxns.filter(function(t){return t.catId===catId&&(t.sub||"")===sub&&t.date.indexOf(m)===0;})
+            .reduce(function(ss,t){return ss+toSGD(t.amount,t.currency,rates,m);},0);
+        },0).toFixed(2);
+      });
+      return{id:catId,name:cat?cat.name:catId,budgetTotal:+budgetTotal.toFixed(2),buffer:buffer,subBudgetSum:+subBudgetSum.toFixed(2),subMap:subMap,months:monthVals};
+    });
+    var totalBudget=+catRows.reduce(function(s,c){return s+c.budgetTotal;},0).toFixed(2);
+    var monthGrandActual=rpMonths.map(function(m,i){return+catRows.reduce(function(s,c){return s+c.months[i];},0).toFixed(2);});
+    var avgActual=+(monthGrandActual.reduce(function(s,v){return s+v;},0)/(rpMonths.length||1)).toFixed(2);
+    return{cats:catRows,totalBudget:totalBudget,monthGrandActual:monthGrandActual,avgActual:avgActual};
+  },[aTxns,budgets,rpMonths,rates,cats]);
+  // 收入：职业/理财/其他 三桶 + 投资亏损净额（代付转账、特殊转账收入不算真实收入，不计入）
+  var rpIncome=useMemo(function(){
+    var incTxns=aTxns.filter(function(t){return t.type==="income";});
+    function bucketSum(bucketIds){
+      return rpMonths.map(function(m){
+        return+incTxns.filter(function(t){return bucketIds.indexOf(t.catId)>=0&&t.date.indexOf(m)===0;})
+          .reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,m);},0).toFixed(2);
+      });
+    }
+    var career=bucketSum(["salary"]);
+    var invest=bucketSum(["fin_in"]);
+    var other=bucketSum(["other_in"]);
+    var sum=function(arr){return+arr.reduce(function(s,v){return s+v;},0).toFixed(2);};
+    var investLossMonth=invLossCat?rpMonths.map(function(m){
+      return+aTxns.filter(function(t){return t.type==="expense"&&t.catId===invLossCat.id&&t.date.indexOf(m)===0;})
+        .reduce(function(s,t){return s+toSGD(t.amount,t.currency,rates,m);},0).toFixed(2);
+    }):rpMonths.map(function(){return 0;});
+    var careerTotal=sum(career),investTotal=sum(invest),otherTotal=sum(other),investLossTotal=sum(investLossMonth);
+    var grandTotal=+(careerTotal+investTotal+otherTotal).toFixed(2);
+    var expTotal=rpExpTotal;
+    return{months:rpMonths,career:career,invest:invest,other:other,careerTotal:careerTotal,investTotal:investTotal,otherTotal:otherTotal,
+      grandTotal:grandTotal,balance:+(grandTotal-expTotal).toFixed(2),
+      investLossMonth:investLossMonth,investLossTotal:investLossTotal};
+  },[aTxns,rpMonths,rates,invLossCat,rpExpTotal]);
+  // 资产分层：按当前余额(不受 aRange 影响，永远是"现在")分到 ASSET_LAYERS，未分层的账户归入"未分类"
+  var rpAssetLayers=useMemo(function(){
+    var groups={};ASSET_LAYERS.forEach(function(l){groups[l.key]={key:l.key,label:l.label,target:l.target,color:l.color,total:0,accounts:[]};});
+    groups.unmapped={key:"unmapped",label:"未分类",target:"—",color:"#b0b0b0",total:0,accounts:[]};
+    accts.filter(function(a){return a.type!=="liability"&&!a.hidden;}).forEach(function(a){
+      var bal=bals[a.id]||0;if(Math.abs(bal)<0.005)return;
+      var lk=acctLayer[a.id]||"unmapped";
+      if(!groups[lk])lk="unmapped";
+      var sgd=toSGD(bal,a.currency,rates,mo);
+      groups[lk].total+=sgd;
+      groups[lk].accounts.push({id:a.id,name:a.name,native:+bal.toFixed(2),currency:a.currency,sgd:+sgd.toFixed(2)});
+    });
+    var list=ASSET_LAYERS.map(function(l){return groups[l.key];}).concat(groups.unmapped.accounts.length?[groups.unmapped]:[]);
+    var grand=list.reduce(function(s,l){return s+l.total;},0);
+    list.forEach(function(l){l.total=+l.total.toFixed(2);l.pct=grand>0?+(l.total/grand*100).toFixed(1):0;l.accounts.sort(function(a,b){return b.sgd-a.sgd;});});
+    var liabRows=accts.filter(function(a){return a.type==="liability"&&!a.hidden;}).map(function(a){var bal=bals[a.id]||0;return{id:a.id,name:a.name,sgd:+toSGD(bal,a.currency,rates,mo).toFixed(2)};}).filter(function(r){return Math.abs(r.sgd)>0.005;}).sort(function(a,b){return a.sgd-b.sgd;});
+    var totalLiab=-liabRows.reduce(function(s,r){return s+r.sgd;},0);
+    return{layers:list,grandTotal:+grand.toFixed(2),liabilities:liabRows,totalLiabilities:+totalLiab.toFixed(2),netWorth:+(grand-totalLiab).toFixed(2)};
+  },[accts,bals,acctLayer,rates,mo]);
+
+// ============================================================
 // 模块 5: 数据持久化 (useEffect)
 // ============================================================
   useEffect(function(){
@@ -284,15 +434,26 @@ function App(){
       if(d.icats)setIcats(d.icats);
       if(d.hiddenCats)setHiddenCats(d.hiddenCats);
       if(d.hiddenSubs)setHiddenSubs(d.hiddenSubs);
+      if(d.budgets)setBudgets(d.budgets);
+      if(d.acctLayer)setAcctLayer(d.acctLayer);
       var tok=localStorage.getItem("cb_token");if(tok)setGhToken(tok);
       var lg=localStorage.getItem("cb_last_gh_sync");if(lg)setLastGhSync(lg);
     }catch(e){}
     setLoaded(true);
   },[]);
 
+  // 首次有账户数据、且还没有分层配置时，按账户名自动猜一次分层（之后完全交给用户在管理页调整）
   useEffect(function(){
     if(!loaded)return;
-try{var _prev=JSON.parse(localStorage.getItem("cb1")||"{}");var _lm=userModified?Date.now():(_prev.lastModified||0);localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,lastModified:_lm}));}catch(e){}  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,loaded]);
+    if(accts.length>0&&Object.keys(acctLayer).length===0){
+      var seeded=seedAcctLayer(accts);
+      if(Object.keys(seeded).length>0)setAcctLayer(seeded);
+    }
+  },[loaded,accts]);
+
+  useEffect(function(){
+    if(!loaded)return;
+try{var _prev=JSON.parse(localStorage.getItem("cb1")||"{}");var _lm=userModified?Date.now():(_prev.lastModified||0);localStorage.setItem("cb1",JSON.stringify({accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,budgets:budgets,acctLayer:acctLayer,lastModified:_lm}));}catch(e){}  },[accts,txns,rates,base,vis,lastSync,acctOrder,projects,cats,icats,hiddenCats,hiddenSubs,budgets,acctLayer,loaded]);
 
   // 页面加载完成后自动从云端拉取最新数据
   useEffect(function(){
@@ -351,7 +512,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
       setGhSt("syncing");
       var now=Date.now();
       var localTime=localStorage.getItem("cb_sync_time")?parseInt(localStorage.getItem("cb_sync_time")):0;
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,budgets:budgets,acctLayer:acctLayer,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       // 先取 sha
       fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"},cache:"no-store"})
@@ -379,7 +540,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         .catch(function(){setGhSt("err");alert("⚠️ 自动同步失败，请手动点击「立即同步」");});
     },5000);// 5秒防抖
     return function(){clearTimeout(timer);};
-  },[accts,txns,projects,acctOrder,loaded]);// 核心数据变化时触发
+  },[accts,txns,projects,acctOrder,budgets,acctLayer,loaded]);// 核心数据变化时触发
 
   // 定时同步：每30分钟自动同步一次
   useEffect(function(){
@@ -394,7 +555,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         (function(){try{var d=JSON.parse(localStorage.getItem("cb1")||"{}");return d.syncTime||0;}catch(e){return 0;}})()
       );      
       var now=Date.now();
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,budgets:budgets,acctLayer:acctLayer,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       var headers={Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"};
       fetch(GH_API,{headers:headers,cache:"no-store"})
@@ -414,7 +575,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         .catch(function(){});
     },30*60*1000);// 30分钟
     return function(){clearInterval(interval);};
-  },[loaded,accts,txns,projects]);// accts/txns变化时重置计时器
+  },[loaded,accts,txns,projects,budgets,acctLayer]);// accts/txns变化时重置计时器
 
 // ============================================================
 // 模块 6: 数据操作函数
@@ -468,7 +629,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
 
     function doUpload(ignoredSha){
       var now=Date.now();
-      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,syncTime:now};
+      var payload={accts:accts,txns:txns,rates:rates,base:base,vis:vis,ls:lastSync,acctOrder:acctOrder,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,budgets:budgets,acctLayer:acctLayer,syncTime:now};
       var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       return fetch(GH_API,{headers:{Authorization:"token "+tok,Accept:"application/vnd.github.v3+json"},cache:"no-store"})
         .then(function(r){return r.ok?r.json():null;})
@@ -492,8 +653,10 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
       if(rp.icats)setIcats(rp.icats);
       if(rp.hiddenCats)setHiddenCats(rp.hiddenCats);
       if(rp.hiddenSubs)setHiddenSubs(rp.hiddenSubs);
+      if(rp.budgets)setBudgets(rp.budgets);
+      if(rp.acctLayer)setAcctLayer(rp.acctLayer);
       localStorage.setItem("cb_sync_time",String(rt));
-      try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[],cats:rp.cats||CATS,icats:rp.icats||ICATS,hiddenCats:rp.hiddenCats||{},hiddenSubs:rp.hiddenSubs||{}}));}catch(e){}
+      try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[],cats:rp.cats||CATS,icats:rp.icats||ICATS,hiddenCats:rp.hiddenCats||{},hiddenSubs:rp.hiddenSubs||{},budgets:rp.budgets||DEF_BUDGETS,acctLayer:rp.acctLayer||{}}));}catch(e){}
       setUserModified(false);return Promise.resolve("downloaded");
     }
 
@@ -551,12 +714,12 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
   }
 
   function exportJSON(){
-    var b=new Blob([JSON.stringify({accts:accts,txns:txns,rates:rates,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs},null,2)],{type:"application/json"});
+    var b=new Blob([JSON.stringify({accts:accts,txns:txns,rates:rates,projects:projects,cats:cats,icats:icats,hiddenCats:hiddenCats,hiddenSubs:hiddenSubs,budgets:budgets,acctLayer:acctLayer},null,2)],{type:"application/json"});
     var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="cashbook_backup.json";a.click();URL.revokeObjectURL(u);
   }
   function restoreJSON(file){
     var r=new FileReader();
-    r.onload=function(e){try{var d=JSON.parse(e.target.result);if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.projects)setProjects(d.projects);if(d.cats)setCats(d.cats);if(d.icats)setIcats(d.icats);if(d.hiddenCats)setHiddenCats(d.hiddenCats);if(d.hiddenSubs)setHiddenSubs(d.hiddenSubs);setUserModified(true);alert("恢复成功！");}catch(err){alert("格式错误");}};
+    r.onload=function(e){try{var d=JSON.parse(e.target.result);if(d.accts)setAccts(d.accts);if(d.txns)setTxns(d.txns);if(d.rates)setRates(d.rates);if(d.projects)setProjects(d.projects);if(d.cats)setCats(d.cats);if(d.icats)setIcats(d.icats);if(d.hiddenCats)setHiddenCats(d.hiddenCats);if(d.hiddenSubs)setHiddenSubs(d.hiddenSubs);if(d.budgets)setBudgets(d.budgets);if(d.acctLayer)setAcctLayer(d.acctLayer);setUserModified(true);alert("恢复成功！");}catch(err){alert("格式错误");}};
     r.readAsText(file);
   }
 
@@ -1348,6 +1511,178 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
             })
           )
         )
+      ),
+      // 年度报告 tab
+      aTab==="report"&&renderReport()
+    );
+  }
+
+// ============================================================
+// 模块 17b: 渲染函数 - 年度报告
+// ============================================================
+  function renderReport(){
+    var acc=function(key){return expRptCats.has(key);};
+    function toggleAcc(key){setExpRptCats(function(p){var n=new Set(p);n.has(key)?n.delete(key):n.add(key);return n;});}
+    var expTitle=aRange.label+" 支出";
+    return h("div",{style:{display:"flex",flexDirection:"column",gap:14}},
+
+      // ============ 支出 ============
+      h("div",{style:{fontSize:13,fontWeight:700,color:"var(--text2)",padding:"4px 2px"}},"支出"),
+      // 月度趋势
+      rpMonths.length>0&&h("div",{style:CARD},
+        h("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},expTitle+"趋势"),
+        h("div",{style:{fontSize:20,fontWeight:500,color:RR,marginBottom:10}},h(Num,{v:fmtS(rpExpTotal),vis:vis})),
+        h(BarChart,{data:rpMonths.map(function(m,i){return{month:m.slice(5),income:0,expense:rpExpDetail.reduce(function(s,c){return s+(c.months[i]||0);},0)};})})
+      ),
+      // 分类占比 donut(复用支出分类的颜色约定，直接用 rpExpDetail)
+      !!rpExpDetail.length&&h("div",{style:CARD},
+        h("div",{style:{fontSize:13,fontWeight:500,marginBottom:10}},"分类占比"),
+        h(Donut,{data:rpExpDetail.map(function(c){return{id:c.id,name:c.name,color:c.color,value:c.total};}),total:rpExpTotal})
+      ),
+      // 月度预算 vs 实际
+      rpBudget.cats.length>0&&h("div",{style:CARD},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+          h("div",{style:{fontSize:13,fontWeight:500}},"月度预算 vs 实际"),
+          h("button",{onClick:function(){setRptEditBudget(function(v){return!v;});},style:{fontSize:11,color:PP,background:"none",border:"none",cursor:"pointer"}},rptEditBudget?"完成":"编辑预算")
+        ),
+        h("div",{style:{fontSize:12,color:"var(--text2)",marginBottom:8}},
+          "预算合计 ",h(Num,{v:fmtS(rpBudget.totalBudget),vis:vis}),"　月均实际 ",h(Num,{v:fmtS(rpBudget.avgActual),vis:vis})
+        ),
+        rpBudget.cats.map(function(c){
+          var monthAvg=+(c.months.reduce(function(s,v){return s+v;},0)/(c.months.length||1)).toFixed(2);
+          var pct=c.budgetTotal>0?Math.min(100,monthAvg/c.budgetTotal*100):0;
+          var over=monthAvg>c.budgetTotal;
+          return h("div",{key:c.id,style:{padding:"8px 0",borderBottom:"0.5px solid var(--bd)"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}},
+              h("span",null,c.name+(c.buffer?"（含机动 S$"+c.buffer+"）":"")),
+              h("span",{style:{color:over?RR:"var(--text2)"}},h(Num,{v:fmtS(monthAvg),vis:vis})," / ",h(Num,{v:fmtS(c.budgetTotal),vis:vis}))
+            ),
+            h("div",{style:{width:"100%",height:5,background:"var(--bg3)",borderRadius:3}},h("div",{style:{width:pct+"%",height:"100%",background:over?RR:GG,borderRadius:3}})),
+            rptEditBudget&&h("div",{style:{marginTop:8,paddingLeft:8,display:"flex",flexDirection:"column",gap:6}},
+              Object.keys(c.subMap).map(function(sub){
+                return h("div",{key:sub,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+                  h("span",{style:{fontSize:12,color:"var(--text2)"}},sub),
+                  h("input",{type:"number",value:c.subMap[sub],style:Object.assign({},IPT,{width:90,padding:"4px 8px",fontSize:12}),
+                    onChange:function(e){var v=+e.target.value||0;setBudgets(function(p){var n=JSON.parse(JSON.stringify(p));n.monthly[c.id][sub]=v;return n;});setUserModified(true);}})
+                );
+              }),
+              h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+                h("span",{style:{fontSize:12,color:"var(--text2)"}},"机动预算"),
+                h("input",{type:"number",value:c.buffer,style:Object.assign({},IPT,{width:90,padding:"4px 8px",fontSize:12}),
+                  onChange:function(e){var v=+e.target.value||0;setBudgets(function(p){var n=JSON.parse(JSON.stringify(p));n.buffer[c.id]=v;return n;});setUserModified(true);}})
+              )
+            )
+          );
+        })
+      ),
+      // 分类明细（含二级分类逐月）
+      !!rpExpDetail.length&&h("div",{style:Object.assign({},CARD,{padding:0,overflow:"hidden"})},
+        h("div",{style:{padding:"12px 14px",fontSize:13,fontWeight:500,borderBottom:"0.5px solid var(--bd)"}},"支出明细"),
+        rpExpDetail.map(function(c){
+          var key="exp_"+c.id,isOpen=acc(key),pct=rpExpTotal>0?(c.total/rpExpTotal*100).toFixed(1):0;
+          return h("div",{key:c.id},
+            h("div",{onClick:function(){toggleAcc(key);},style:{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",borderBottom:"0.5px solid var(--bd)"}},
+              h("div",{style:{width:10,height:10,borderRadius:2,background:c.color,flexShrink:0}}),
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:13,fontWeight:500}},c.name),
+                h("div",{style:{width:"100%",height:3,background:"var(--bg3)",borderRadius:2,marginTop:3}},h("div",{style:{width:pct+"%",height:"100%",background:c.color,borderRadius:2}}))
+              ),
+              h("div",{style:{textAlign:"right"}},h("div",{style:{fontSize:13,fontWeight:500}},h(Num,{v:"S$"+c.total.toFixed(2),vis:vis})),h("div",{style:{fontSize:11,color:"var(--text2)"}},pct+"%")),
+              h("span",{style:{fontSize:11,color:"var(--text2)"}},isOpen?"▲":"▼")
+            ),
+            isOpen&&h("div",{style:{background:"var(--bg2)",borderBottom:"0.5px solid var(--bd)"}},
+              c.subs.filter(function(s){return s.total>0.005;}).sort(function(a,b){return b.total-a.total;}).map(function(s){
+                return h("div",{key:s.name,style:{padding:"7px 14px 7px 28px",borderBottom:"0.5px solid var(--bd)"}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between"}},
+                    h("span",{style:{fontSize:12}},s.name),
+                    h("span",{style:{fontSize:12}},h(Num,{v:"S$"+s.total.toFixed(2),vis:vis})," ",h("span",{style:{color:"var(--text2)",fontSize:11}},"(月均 S$"+s.avg.toFixed(2)+")"))
+                  )
+                );
+              })
+            )
+          );
+        })
+      ),
+
+      // ============ 收入 ============
+      h("div",{style:{fontSize:13,fontWeight:700,color:"var(--text2)",padding:"4px 2px",marginTop:4}},"收入"),
+      rpMonths.length>0&&h("div",{style:CARD},
+        h("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},aRange.label+" 收入"),
+        h("div",{style:{fontSize:20,fontWeight:500,color:GG,marginBottom:10}},h(Num,{v:fmtS(rpIncome.grandTotal),vis:vis})),
+        h(BarChart,{data:rpMonths.map(function(m,i){return{month:m.slice(5),income:rpIncome.career[i]+rpIncome.invest[i]+rpIncome.other[i],expense:0};})}),
+        h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginTop:8}},
+          h("span",null,"收支结余"),
+          h("span",{style:{color:rpIncome.balance>=0?GG:RR,fontWeight:500}},(rpIncome.balance>=0?"+":"")+fmtS(rpIncome.balance))
+        )
+      ),
+      h("div",{style:Object.assign({},CARD,{padding:0,overflow:"hidden"})},
+        h("div",{style:{padding:"12px 14px",fontSize:13,fontWeight:500,borderBottom:"0.5px solid var(--bd)"}},"收入明细"),
+        [{label:"职业收入",v:rpIncome.careerTotal,color:GG},{label:"理财收入",v:rpIncome.investTotal,color:GG},{label:"其他收入",v:rpIncome.otherTotal,color:GG}].map(function(r,i){
+          return h("div",{key:i,style:{display:"flex",justifyContent:"space-between",padding:"9px 14px",borderBottom:"0.5px solid var(--bd)",fontSize:13}},
+            h("span",null,r.label),h("span",{style:{fontWeight:500}},h(Num,{v:fmtS(r.v),vis:vis}))
+          );
+        }),
+        rpIncome.investLossTotal>0.005&&h("div",{style:{display:"flex",justifyContent:"space-between",padding:"9px 14px",borderBottom:"0.5px solid var(--bd)",fontSize:13,color:RR}},
+          h("span",null,"投资亏损"),h("span",{style:{fontWeight:500}},h(Num,{v:"-"+fmtS(rpIncome.investLossTotal),vis:vis}))
+        ),
+        h("div",{style:{display:"flex",justifyContent:"space-between",padding:"9px 14px",fontSize:13,fontWeight:600}},
+          h("span",null,"净理财收益"),h("span",null,h(Num,{v:fmtS(+(rpIncome.investTotal-rpIncome.investLossTotal).toFixed(2)),vis:vis}))
+        )
+      ),
+
+      // ============ 投资与资产 ============
+      h("div",{style:{fontSize:13,fontWeight:700,color:"var(--text2)",padding:"4px 2px",marginTop:4}},"投资与资产"),
+      h("div",{style:CARD},
+        h("div",{style:{fontSize:13,fontWeight:500,marginBottom:4}},"净资产（当前）"),
+        h("div",{style:{fontSize:22,fontWeight:600}},h(Num,{v:fmtS(rpAssetLayers.netWorth),vis:vis})),
+        h("div",{style:{display:"flex",gap:14,fontSize:12,color:"var(--text2)",marginTop:6}},
+          h("span",null,"总资产 ",h(Num,{v:fmtS(rpAssetLayers.grandTotal),vis:vis})),
+          rpAssetLayers.totalLiabilities>0.005&&h("span",null,"总负债 ",h(Num,{v:fmtS(rpAssetLayers.totalLiabilities),vis:vis}))
+        )
+      ),
+      h("div",{style:Object.assign({},CARD,{padding:0,overflow:"hidden"})},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",borderBottom:"0.5px solid var(--bd)"}},
+          h("div",{style:{fontSize:13,fontWeight:500}},"资产分层"),
+          h("button",{onClick:function(){setRptEditLayers(function(v){return!v;});},style:{fontSize:11,color:PP,background:"none",border:"none",cursor:"pointer"}},rptEditLayers?"完成":"管理分层")
+        ),
+        rpAssetLayers.layers.map(function(l){
+          var key="layer_"+l.key,isOpen=acc(key);
+          return h("div",{key:l.key},
+            h("div",{onClick:function(){toggleAcc(key);},style:{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",cursor:"pointer",borderBottom:"0.5px solid var(--bd)"}},
+              h("div",{style:{width:10,height:10,borderRadius:2,background:l.color,flexShrink:0}}),
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:13,fontWeight:500}},l.label),
+                h("div",{style:{fontSize:11,color:"var(--text2)"}},"目标 "+l.target+(l.target!=="—"?("　当前 "+l.pct+"%"):""))
+              ),
+              h("div",{style:{textAlign:"right"}},h("div",{style:{fontSize:13,fontWeight:500}},h(Num,{v:"S$"+l.total.toFixed(2),vis:vis}))),
+              h("span",{style:{fontSize:11,color:"var(--text2)"}},isOpen?"▲":"▼")
+            ),
+            isOpen&&h("div",{style:{background:"var(--bg2)",borderBottom:"0.5px solid var(--bd)"}},
+              l.accounts.map(function(a){
+                return h("div",{key:a.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 14px 7px 28px",borderBottom:"0.5px solid var(--bd)"}},
+                  h("div",{style:{flex:1}},
+                    h("div",{style:{fontSize:12}},a.name),
+                    a.currency!=="SGD"&&h("div",{style:{fontSize:10,color:"var(--text2)"}},a.currency+" "+a.native.toFixed(2))
+                  ),
+                  !rptEditLayers
+                    ?h("span",{style:{fontSize:12}},h(Num,{v:"S$"+a.sgd.toFixed(2),vis:vis}))
+                    :h("select",{value:acctLayer[a.id]||"unmapped",style:{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid var(--bd)",background:"var(--bg)",color:"var(--text)"},
+                        onChange:function(e){var v=e.target.value;setAcctLayer(function(p){var n=Object.assign({},p);if(v==="unmapped")delete n[a.id];else n[a.id]=v;return n;});setUserModified(true);}},
+                        ASSET_LAYERS.concat([{key:"unmapped",label:"未分类"}]).map(function(lo){return h("option",{key:lo.key,value:lo.key},lo.label);})
+                      )
+                );
+              })
+            )
+          );
+        }),
+        rpAssetLayers.liabilities.length>0&&h("div",{style:{padding:"10px 14px",borderTop:"0.5px solid var(--bd)"}},
+          h("div",{style:{fontSize:12,fontWeight:500,color:"var(--text2)",marginBottom:6}},"负债"),
+          rpAssetLayers.liabilities.map(function(r){
+            return h("div",{key:r.id,style:{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12}},
+              h("span",null,r.name),h("span",{style:{color:RR}},h(Num,{v:fmtS(r.sgd),vis:vis}))
+            );
+          })
+        )
       )
     );
   }
@@ -1606,7 +1941,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
           h("div",null,h(Lbl,null,"结束"),h("input",{type:"date",value:aTo,style:SM,onChange:function(e){setATo(e.target.value);}}))
         ),
         h("div",{style:{display:"flex",gap:6,paddingBottom:10,overflowX:"auto"}},
-          [["cat","分类支出"],["trend","收支趋势"],["income","收入构成"],["project","项目汇总"]].map(function(x){
+          [["cat","分类支出"],["trend","收支趋势"],["income","收入构成"],["project","项目汇总"],["report","年度报告"]].map(function(x){
             return h("button",{key:x[0],onClick:function(){setATab(x[0]);},style:{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:500,border:"0.5px solid "+(aTab===x[0]?PP:"var(--bd)"),background:aTab===x[0]?PP:"var(--bg)",color:aTab===x[0]?"white":"var(--text)",cursor:"pointer",flexShrink:0}},x[1]);
           })
         ),
