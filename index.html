@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -492,8 +493,14 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         if(rp.vis!==undefined)setVis(rp.vis);
         if(rp.acctOrder)setAcctOrder(rp.acctOrder);
         if(rp.projects)setProjects(rp.projects);
+        if(rp.cats)setCats(rp.cats);
+        if(rp.icats)setIcats(rp.icats);
+        if(rp.hiddenCats)setHiddenCats(rp.hiddenCats);
+        if(rp.hiddenSubs)setHiddenSubs(rp.hiddenSubs);
+        if(rp.budgets)setBudgets(rp.budgets);
+        if(rp.acctLayer)setAcctLayer(rp.acctLayer);
         localStorage.setItem("cb_sync_time",String(rp.syncTime));
-        try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[]}));}catch(e){}
+        try{localStorage.setItem("cb1",JSON.stringify({accts:rp.accts||[],txns:rp.txns||[],rates:rp.rates||DEFRTS,base:rp.base||"SGD",vis:rp.vis!==undefined?rp.vis:true,ls:rp.ls||"",acctOrder:rp.acctOrder||[],projects:rp.projects||[],cats:rp.cats||CATS,icats:rp.icats||ICATS,hiddenCats:rp.hiddenCats||{},hiddenSubs:rp.hiddenSubs||{},budgets:rp.budgets||DEF_BUDGETS,acctLayer:rp.acctLayer||{}}));}catch(e){}
         var now=new Date().toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
         setLastGhSync(now);localStorage.setItem("cb_last_gh_sync",now);
         setUserModified(false);setGhSt("ok");setTimeout(function(){setGhSt("");},3000);
@@ -809,7 +816,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
     var clr=(isInc||posAdj)?GG:isX?PP:RR;
     var iconBg=isX?PP:isAdj?"#888":isInc?GG:(cat?cat.color:"#8a8a8a");
     var iconCh=isX?"⇄":isAdj?"±":isInc?"收":(cat?cat.name.slice(0,1):"?");
-    var ic=findICat(t.catId);
+    var ic=findICatS(t.catId);
     var catLabel=isX?"转账":isAdj?(t.amount>0?"余额+":"余额-"):isInc?(ic?ic.name:t.sub||"收入"):cat?cat.name+(t.sub?" · "+t.sub:""):"";
     var catClr=isX?PP:isAdj?"#888":isInc?GG:(cat?cat.color:"#8a8a8a");
     var proj=t.projectId?findById(projects,t.projectId):null;
@@ -1205,7 +1212,7 @@ var localModified=(function(){try{var d=JSON.parse(localStorage.getItem("cb1")||
         h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},
           h("div",null,h(Lbl,null,"开始"),h("input",{type:"date",value:flt.dateFrom,style:SM,onChange:function(e){upd(setFlt,{dateFrom:e.target.value});}})),
           h("div",null,h(Lbl,null,"结束"),h("input",{type:"date",value:flt.dateTo,style:SM,onChange:function(e){upd(setFlt,{dateTo:e.target.value});}}))),
-        h("div",{style:{marginBottom:8}},h(Lbl,null,"分类"),h("select",{value:flt.catId,style:SM,onChange:function(e){upd(setFlt,{catId:e.target.value,subCat:""});}},h("option",{value:""},"全部"),CATS.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))),
+        h("div",{style:{marginBottom:8}},h(Lbl,null,"分类"),h("select",{value:flt.catId,style:SM,onChange:function(e){upd(setFlt,{catId:e.target.value,subCat:""});}},h("option",{value:""},"全部"),cats.map(function(c){return h("option",{key:c.id,value:c.id},c.name);}))),
         flt.subCat&&h("div",{style:{marginBottom:8}},
           h(Lbl,null,"子分类"),
           h("div",{style:{display:"flex",alignItems:"center",gap:8}},
